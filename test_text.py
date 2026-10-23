@@ -7,7 +7,8 @@ import time
 import torch
 from eg2 import load
 
-torch.cuda.set_per_process_memory_fraction(0.3)   # 공유 메모리 8GB 중 GPU 몫 상한 (팀 문서 11번)
+if torch.cuda.is_available():  # 맥(7단계 비교)에서는 건너뛴다
+    torch.cuda.set_per_process_memory_fraction(0.3)   # 공유 메모리 8GB 중 GPU 몫 상한 (팀 문서 11번)
 
 docs = [
     "환기가 부족하면 강의실 CO2 농도가 1000ppm을 넘어 집중력이 떨어진다.",
@@ -25,7 +26,7 @@ def run(model, q_prompt, d_prompt):
     model.encode(queries, prompt_name=q_prompt, **enc)   # 예열: 첫 호출의 CUDA 초기화 시간을 빼고 비교
     all_ok = True
     for dim in [768, 256, 128]:
-        torch.cuda.synchronize()
+        if torch.cuda.is_available(): torch.cuda.synchronize()
         t = time.perf_counter()
         q = model.encode(queries, prompt_name=q_prompt, truncate_dim=dim, **enc)
         ms = (time.perf_counter() - t) * 1000
@@ -56,10 +57,10 @@ with torch.inference_mode():
     print("\n===== 변형 과제: 프롬프트 없음 (참고, 통과 조건 아님) =====")
     ok_np = run(model, None, None)
 
-peak = torch.cuda.max_memory_allocated() / 2**20
+peak = torch.cuda.max_memory_allocated() / 2**20 if torch.cuda.is_available() else 0
 del model
 gc.collect()
-torch.cuda.empty_cache()
+if torch.cuda.is_available(): torch.cuda.empty_cache()
 
 print(f"\nGPU 메모리 최대 {peak:.0f} MB")
 print("변형 과제:", "모든 차원 1위 정답" if ok_np else "1위가 틀린 차원이 있음")
