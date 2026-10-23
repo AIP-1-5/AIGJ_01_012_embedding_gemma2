@@ -2,7 +2,8 @@
 
 > 상태: **안내 작성 완료, 보드 실행 전** (보드 A·B 모두 아직 결과 없음)
 > 원문: 실습 README의 "1단계 환경 준비"
-> 팀 규칙: `AIP-1-5/docs_embedding_gemma2`의 README (특히 3·4·5·7·11번, 2026-10-23 `f47038e` 기준)
+> 팀 규칙: `AIP-1-5/docs_embedding_gemma2`의 README (특히 2·3·4·5·7·11번, 2026-10-23 `4901dbf` 기준)
+> 우리 보드: A·B 모두 **JetPack 7.2.1 (Ubuntu 24.04, Python 3.12)**, 전원 모드 MAXN SUPER (팀 README 2번 "보드 A·B 정보")
 
 이 단계가 끝나면 각자 보드 계정에 GPU가 실제로 계산하는 파이썬 환경(`~/eg2`)이 생긴다. 2단계부터 모든 단계가 이 환경 위에서 돈다.
 
@@ -37,7 +38,8 @@
 | "재부팅 후 `df -h /ssd`로 확인" | 재부팅하지 않고 `sudo findmnt --verify`로 확인 | 보드 재부팅 금지 |
 | `nvpmodel -m 0`, `jetson_clocks` | **바꾸지 않는다.** `nvpmodel -q`로 MAXN SUPER인지 확인만 한다 | 팀 규칙 11번. 이미 MAXN SUPER로 맞춰 두었고, 바꾸면 센서 서비스 측정값도 달라진다 |
 | 스왑 8GB 추가 | 이미 있는지 먼저 보고, `/etc/fstab`에 같은 줄을 두 번 넣지 않는다 | 다른 사람이 이미 했을 수 있다 |
-| sudo 명령을 각자 실행 | **보드마다 한 사람(sudo 담당)이 한 번만** 실행한다 | 팀 규칙 7번. 명령은 아래 4번에 덩어리로 정리했다 |
+| sudo 명령을 각자 실행 | **보드마다 한 사람(sudo 담당)이 관리 계정(보드 A `team5`, 보드 B `team5-b`)으로 한 번만** 실행한다 | 팀 규칙 7번. 명령은 아래 4번에 덩어리로 정리했다. 관리 계정 비밀번호는 단톡방에서 받는다 |
+| JetPack 6·7 둘 다 안내 | 우리 보드는 **JetPack 7 경로**를 쓴다 | 두 보드 모두 JetPack 7.2.1이다. 3번 확인에서 다르게 나오면 그때 JetPack 6 경로 |
 | GPU 확인을 그냥 `python`으로 | `~/practice.sh 이름 python ...`로 실행 | 팀 규칙 4번. 메모리 제한과 자물쇠가 걸린다 |
 | HF 캐시를 `/ssd/hf` 하나로 | 계정마다 `/ssd/계정이름/hf` (SSD가 없으면 홈 폴더). 받기 전에 `df -h`로 10GB 이상 남았는지 본다 | 한 폴더를 여러 계정이 같이 쓰면 권한 오류가 난다. 디스크가 차면 센서 수집기가 DB에 못 쓴다(팀 규칙 11번) |
 | 아무 계정으로 접속 | **자기 개인 계정**으로 접속. 관리 계정(`team5`, `team5-b`)으로 하지 않는다 | 팀 규칙 5번. 홈 폴더(`~/eg2`)가 사람마다 따로 생긴다 |
@@ -63,8 +65,8 @@ echo "== 센서 서비스(보드 A)"; curl -s -m 3 localhost:8080/v1/health || e
 
 | 본 것 | 판단 |
 | --- | --- |
-| `nv_tegra_release`가 `R36`, `python3 -V`가 3.10 | **JetPack 6** → 5-3에서 JetPack 6 명령 |
-| `R38`, 3.12 | **JetPack 7** → 5-3에서 JetPack 7 명령 |
+| `nv_tegra_release`가 `R38`, `lsb_release`가 24.04, `python3 -V`가 3.12 | **JetPack 7** (우리 보드의 기대값) → 5-3에서 JetPack 7 명령 |
+| `R36`, 22.04, 3.10 | JetPack 6 → 5-3에서 JetPack 6 명령. 팀 README의 보드 정보와 다르니 재웅에게 알린다 |
 | `nvme0n1`의 MOUNTPOINT가 `/` | SSD로 부팅 중. 4-A(SSD)는 건너뛴다. 스왑은 `/swapfile`, 캐시는 홈 폴더 |
 | `nvme0n1p1`이 `/ssd`에 마운트돼 있음 | 이미 준비됨. 4-A는 건너뛴다 |
 | `nvme0n1p1`에 FSTYPE(ext4 등)이 있는데 마운트 안 됨 | **포맷 금지.** 4-A의 "마운트만" 명령을 쓴다. 안에 뭐가 있는지 먼저 본다 |
@@ -77,7 +79,7 @@ echo "== 센서 서비스(보드 A)"; curl -s -m 3 localhost:8080/v1/health || e
 
 ## 4. sudo 담당이 한 번만 하는 일 (보드마다 한 사람)
 
-> 이 부분은 sudo 비밀번호가 필요하다. Claude는 실행하지 않는다. sudo 담당이 직접 붙여 넣는다.
+> 이 부분은 sudo 비밀번호가 필요하다. Claude는 실행하지 않는다. sudo 담당이 관리 계정(보드 A `team5`, 보드 B `team5-b`)으로 접속해 직접 붙여 넣고, 끝나면 관리 계정에서 나온다(실습은 개인 계정으로).
 > 시작 전에 팀에 "지금 보드 ○ sudo 작업 한다"고 말한다.
 
 ### 4-A. SSD 마운트 (3번 표에서 필요하다고 나온 경우만)
@@ -183,20 +185,22 @@ pip install -U pip wheel
 
 3번에서 확인한 JetPack 버전에 맞는 **한 덩어리만** 실행한다. torch 휠은 수백 MB라 받기 전에 `df -h ~`를 한 번 더 본다. 그냥 `pip install torch`는 CPU 전용이라 안 된다.
 
-**JetPack 6 (R36, Python 3.10)**:
-
-```bash
-source ~/eg2/bin/activate
-pip install torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 \
-  --index-url https://pypi.jetson-ai-lab.io/jp6/cu126
-```
-
-**JetPack 7 (R38, Python 3.12)**:
+**JetPack 7 (R38, Python 3.12) — 우리 보드 A·B는 이것**:
 
 ```bash
 source ~/eg2/bin/activate
 python -m pip install --pre torch torchvision \
   --extra-index-url https://download.pytorch.org/whl/cu132
+```
+
+- torchaudio는 따로 설치하지 않는다. PyPI의 torchaudio는 CUDA 버전이 달라서 2단계에서 `AutoProcessor` 오류를 낸다(원문 Q7). 오디오는 2단계에서 soundfile·librosa로 읽는다.
+
+**JetPack 6 (R36, Python 3.10) — 3번 확인에서 R36이 나온 경우만**:
+
+```bash
+source ~/eg2/bin/activate
+pip install torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 \
+  --index-url https://pypi.jetson-ai-lab.io/jp6/cu126
 ```
 
 ### 5-4. GPU 확인 (성공 기준)
@@ -209,7 +213,7 @@ source ~/eg2/bin/activate
 ```
 
 - "지금 ○○ 사용 중이에요"가 나오면 그 사람이 끝날 때까지 기다렸다가 다시 한다.
-- 결과는 두 줄이다. 첫 줄 `2.10.0 (8, 7) True`처럼, 둘째 줄에 숫자 하나. 1번 성공 기준과 비교한다.
+- 결과는 두 줄이다. 첫 줄 `2.x.x (8, 7) True`처럼(앞의 torch 버전 숫자는 설치 시점에 따라 다르다), 둘째 줄에 숫자 하나. 1번 성공 기준과 비교한다.
 
 ### 5-5. torch 버전 고정 (통과했을 때만)
 
@@ -236,9 +240,10 @@ free -h; df -h / /ssd 2>/dev/null
 
 | 화면에 나온 것 | 원인 | 할 일 |
 | --- | --- | --- |
-| `from versions: none` | Python 버전과 torch 인덱스가 안 맞음 (JetPack 6 인덱스는 3.10 전용) | `python -V` 확인 후 맞는 5-3 덩어리로 다시 |
+| `from versions: none` | Python 버전과 torch 인덱스가 안 맞음 (JetPack 6 인덱스는 3.10 전용이라 우리 보드의 3.12에서는 후보가 없다) | `python -V` 확인 후 맞는 5-3 덩어리로 다시 |
 | `externally-managed-environment` | venv가 켜지지 않은 채 시스템 pip를 씀 | `source ~/eg2/bin/activate` 후 다시. `--break-system-packages`는 쓰지 않는다 |
 | `python3 -m venv`가 실패 | `python3-venv`가 없음 | sudo 담당에게 4-D를 부탁 |
+| `PyTorch has CUDA version 13.2 whereas TorchAudio has CUDA version 13.0` | PyPI torchaudio가 깔림 | `pip uninstall -y torchaudio` (원문 Q7) |
 | `nvcc: command not found` | CUDA는 있는데 PATH에 없음 | torch는 nvcc 없이도 된다. JetPack 판단은 `nv_tegra_release`로 한다 |
 | `no kernel image` / `sm_87` 경고 | JetPack에 안 맞는 휠 | `pip uninstall -y torch torchvision torchaudio` 후 맞는 5-3 덩어리로 다시 |
 | `curl -sI` 결과가 `302` | 인덱스 서버의 정상 넘겨주기 | 문제 아님. pip는 알아서 따라간다 |
