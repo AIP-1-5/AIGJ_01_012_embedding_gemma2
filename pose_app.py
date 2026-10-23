@@ -6,6 +6,8 @@
 #   - 메모리 감시: 시작 전 available 3GB 미만이면 안 켬, 도는 중 1GB 미만이면 바로 끝냄, GPU 몫 0.3
 #   - ultralytics 자동 pip 설치 끔 (torch가 바뀌지 않게). 해상도는 SIZE=640x480으로 바꿀 수 있게
 #   - 끝날 때 기록 CSV를 닫고 몇 줄 썼는지 알려 준다. 사진·영상은 원문처럼 저장하지 않는다
+#   - Ctrl+C(SIGINT) 한 번으로 끝난다: 브라우저 스트림을 2초 안에 끊고, 촬영 스레드를 멈춘 뒤 나간다 (9-2 1차 종료 문제)
+#   - 흔드는 폭 기준(원문 0.15)을 WAVE_AMP로 바꿀 수 있게 (9-2 2차, 보고서 7번)
 import os
 os.environ["YOLO_AUTOINSTALL"] = "False"          # ultralytics가 몰래 pip install 하지 않게 (torch 고정 지키기)
 import time, threading, collections, argparse, csv
@@ -38,6 +40,7 @@ W, H = (int(v) for v in os.environ.get("SIZE", "1280x720").split("x"))   # fps 1
 START_MIN_MB, KILL_MIN_MB = 3000, 1000   # 팀 메모리 원칙: 시작 전 3GB, 도는 중 1GB
 SMOOTH_S = 0.6        # 다수결 창(초)
 WAVE_S = 1.5          # 손 흔들기 판정 창(초)
+WAVE_AMP = float(os.environ.get("WAVE_AMP", "0.15"))   # 흔드는 폭(어깨 너비 단위). 원문 0.15
 BEH_WIN = 15.0        # 행동 패턴 판정 창(초)
 FACE_TH = 0.6         # 정면으로 볼 facing 점수
 LOOK_S, INTEREST_S, LINGER_S = 1.0, 3.0, 10.0
@@ -65,9 +68,10 @@ det = YOLO("yolo11n-pose.pt")         # 첫 실행 시 자동 다운로드
 models = [load_model(p) for p in args.model]
 SEQ_LEN = max([m["window"] for m in models], default=1)
 print(f"[pose mode={MODE}] conf={args.conf} behavior={args.behavior} "
-      f"models={[(m['task'], m['labels']) for m in models]} size={W}x{H}", flush=True)
+      f"models={[(m['task'], m['labels']) for m in models]} size={W}x{H} wave_amp={WAVE_AMP}", flush=True)
 
 frame_lock, ev_lock = threading.Lock(), threading.Lock()
+stop = threading.Event()              # 끝낼 때 촬영 스레드·스트림을 멈춘다
 latest_jpeg = None
 tracks = {}
 pairs = {}            # (tid_a, tid_b) -> deque[(t, bool)]
@@ -107,7 +111,7 @@ def is_wave(hist):
     changes, last_dir, anchor = 0, 0, xs[0]
     for x in xs[1:]:
         d = x - anchor
-        if abs(d) > 0.15:
+        if abs(d) > WAVE_AMP:
             cur = 1 if d > 0 else -1
             if last_dir and cur != last_dir:
                 changes += 1
@@ -255,7 +259,7 @@ def capture_loop():
         print(f"/dev/video{args.cam}을 열 수 없다 (live.py·app.py 등 다른 프로그램이 쓰는 중인지 확인, 원문 Q11)", flush=True)
         os._exit(2)
     t0, n = time.time(), 0
-    while True:
+    while not stop.is_set():
         ok, frame = cap.read()
         if not ok:
             time.sleep(0.1); continue
@@ -312,6 +316,7 @@ def capture_loop():
         if ok:
             with frame_lock:
                 latest_jpeg = buf.tobytes()
+    cap.release()
 
 def mem_watch():
     # 도는 중 available이 1GB 아래로 내려가면 센서 서비스를 지키려고 바로 끝낸다 (6·8단계와 같은 기준)
@@ -339,7 +344,7 @@ app = FastAPI()
 @app.get("/stream")
 def stream():
     def gen():
-        while True:
+        while not stop.is_set():
             with frame_lock:
                 f = latest_jpeg
             if f:
@@ -385,10 +390,15 @@ def index():
     return PAGE
 
 if __name__ == "__main__":
-    threading.Thread(target=capture_loop, daemon=True).start()
+    cap_th = threading.Thread(target=capture_loop, daemon=True)
+    cap_th.start()
     threading.Thread(target=mem_watch, daemon=True).start()
     print(f"브라우저에서 http://{args.host}:{args.port} (끝내려면 Ctrl+C)", flush=True)
     try:
-        uvicorn.run(app, host=args.host, port=args.port)
+        # 브라우저 /stream이 열려 있어도 2초 뒤 끊고 끝낸다 (1차: 두 번째 Ctrl+C가 필요했음)
+        uvicorn.run(app, host=args.host, port=args.port, timeout_graceful_shutdown=2)
     finally:
+        stop.set()
+        cap_th.join(timeout=3)        # 촬영·검출이 도는 중에 파이썬이 내려가면 C++ 쪽이 죽는다 (1차: core dumped)
         cleanup()
+        os._exit(0)                   # 남은 스레드 정리 중 충돌 없이 바로 나간다
