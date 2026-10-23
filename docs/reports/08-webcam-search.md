@@ -103,14 +103,16 @@ cd ~/eg2-재웅 && git pull && git log -1 --oneline   # 보고서에 적을 커�
 source ~/eg2/bin/activate
 pip install -c ~/eg2/torch-pin.txt --no-deps ultralytics ultralytics-thop
 pip install -c ~/eg2/torch-pin.txt "numpy==1.26.4" "opencv-python-headless==4.11.0.86" \
-  fastapi "uvicorn[standard]" matplotlib pyyaml requests scipy psutil polars pillow tqdm
+  fastapi "uvicorn[standard]" matplotlib pyyaml requests scipy psutil polars pillow tqdm lap
+pip install -c ~/eg2/torch-pin.txt --no-deps "git+https://github.com/ultralytics/CLIP.git"
+pip install -c ~/eg2/torch-pin.txt "numpy==1.26.4" ftfy regex
 pip uninstall -y opencv-python 2>/dev/null; pip freeze | grep -E '^(torch|torchvision|torchaudio|numpy|opencv.*|ultralytics)=='
 python -c "import cv2, numpy, torch, ultralytics, fastapi; print(cv2.__version__, numpy.__version__, torch.cuda.is_available(), ultralytics.__version__)"
 ```
 
 - 기대: torch `2.14.1+cu132`, torchvision `0.29.1+cu132`, numpy `1.26.4`, opencv-python-headless `4.11.0.86`, `cuda True`. torchaudio 줄이 보이면 `pip uninstall -y torchaudio`.
 - `ImportError: ... No module named X`가 나오면 `pip install -c ~/eg2/torch-pin.txt "numpy==1.26.4" X`로 그것만 깔고 다시 확인한다(화면을 보내 주면 목록에 반영).
-- YOLOE 텍스트 인코더가 `clip` 패키지를 요구하면(8-3 첫 실행 때 `No module named 'clip'`): `pip install -c ~/eg2/torch-pin.txt --no-deps "git+https://github.com/ultralytics/CLIP.git" ftfy regex` (추정, 보드에서 확인).
+- 보드 A 1차에서 실제로 더 필요했던 것: `lap`(0.5.13, YOLO 추적. 없으면 카메라 스레드가 죽는다), YOLOE 텍스트 인코더용 `clip`(ultralytics CLIP, `--no-deps`)·`ftfy`·`regex`(+`wcwidth`). 위 명령에 넣었다.
 
 ### 4-3. 8-1 기준선 (`yolo`)
 
@@ -188,7 +190,7 @@ ls ~/eg2-재웅/crops 2>/dev/null   # 비어 있어야 한다 (남았으면 rm -
 | 컵 | 맞음 | 맞음 (점수 못 받음) | 맞음 | |
 | 노트북 | 맞음 | 맞음 (점수 못 받음) | 맞음 | |
 | 휴대폰 | 맞음 | 맞음 (점수 못 받음) | 맞음 | |
-| 드럼 세탁기 (사진) | 미검출 | 드럼 세탁기 (점수 못 받음) | 박스는 생김, 이름 휴대폰·키보드 | 사진을 **휴대폰·모니터 화면에** 띄웠다(3번 준비물과 다름). yoloe는 세탁기보다 그 화면을 잡았다 |
+| 드럼 세탁기 (사진) | 미검출 | 드럼 세탁기 (점수 못 받음) | **판정 보류** (박스는 생김, 이름 휴대폰·키보드) | 사진을 **휴대폰·모니터 화면에** 띄웠다(3번 준비물과 다름). 그래서 세 모드 모두 이 줄은 참고로만 본다 |
 | 원통형 전지 포장 | 미검출 | 미검출 | 미검출 | |
 | 건전지 | 미검출 | 건전지 (점수 못 받음) | 미검출 | |
 
@@ -216,7 +218,8 @@ ls ~/eg2-재웅/crops 2>/dev/null   # 비어 있어야 한다 (남았으면 rm -
 - **yolo에서 미검출이던 건전지·세탁기가 relabel에서 맞은 이유.** 두 모드는 검출기(yolo11n)가 같지만 relabel은 conf를 0.5 → 0.35로 낮춘다(원문 설정). 그래서 애매한 박스가 생겼고, 그 크롭에 EmbeddingGemma 2가 맞는 이름을 붙였다. 원문 8-2가 말한 "박스를 더 확보 + 이름 바로잡기"가 그대로 일어났다.
 - **전지 포장은 세 모드 모두 미검출.** 박스가 아예 없어서 재라벨할 크롭도 없었다. yoloe도 못 잡은 건 포장이 작거나 "battery pack"이라는 말과 겉모습이 달랐을 수 있다(추정).
 - **yoloe의 세탁기가 휴대폰·키보드가 된 이유.** 세탁기 사진을 휴대폰·모니터 화면에 띄웠다. yoloe는 `LABELS`에 있는 "cell phone"·"keyboard"·"monitor"도 같이 찾으므로, 사진 속 세탁기보다 그걸 담은 기기를 먼저 잡았다. 3번 준비물에 "화면에 띄우면 그 자체가 노트북·휴대폰으로 잡혀 헷갈린다"고 적어 둔 경우다.
-- **끌 때 멈춘 이유(추정).** `/stream`이 끝없이 영상을 보내는 연결이라, Ctrl+C 뒤 웹 서버(uvicorn)가 "연결이 끝나길" 계속 기다렸다. 카메라 스레드도 멈추라는 신호 없이 `cap.read()`를 계속 돌았다.
+- **끌 때 멈춘 이유.** 보드 담당이 본 바로는 Ctrl+C 뒤 python이 **D 상태**(커널 안에서 카메라를 놓는 중, 신호를 안 받음)로 멈췄고 세 번 모두 `kill -9`가 필요했다. 카메라 스레드가 멈추라는 신호 없이 `cap.read()`를 도는 중에 프로그램이 내려가면서 웹캠 드라이버(uvcvideo)가 스트림을 끊는 단계에서 걸린 것으로 보인다(추정). 원문 코드에도 카메라를 놓는 순서가 따로 없다. 끝없는 `/stream` 연결 때문에 웹 서버가 늦게 끝나는 것도 겹쳤을 수 있다.
+- 참고(크롭 원래 라벨 개수, 지우기 전 보드 담당이 셈): yolo `tv` 16·keyboard 10·laptop 9·mouse 7·cell phone 5·cup 3·chair 2·bottle 1·book 1 / relabel `tv` 9·keyboard 6·cell phone 3·cup 3·laptop 3·mouse 3·remote 1·book 1·bottle 1 / yoloe cell phone 21·keyboard 16·mouse 11·laptop 5·book 2·chair 1·cup 1·monitor 1 (화면 총 58개). yolo·relabel의 `tv`가 많은 건 세탁기 사진을 띄운 모니터·화면이 TV로 잡힌 것으로 보인다.
 - 메모리: 도는 중 available 최저는 yolo 1.6GB, relabel 2.1GB, yoloe 2.0GB로 6단계 비전 모양(2.2GB)과 비슷하거나 조금 낮았다. 1GB 정지선에는 안 갔다. yolo 모드가 가장 낮았던 건 그때 다른 계정 프로그램이 같이 돌았을 수 있다(확인 안 함).
 
 ## 7. 2차 재측정 (실행 전에 적음, 2026-10-23)
@@ -230,7 +233,7 @@ ls ~/eg2-재웅/crops 2>/dev/null   # 비어 있어야 한다 (남았으면 rm -
 | 바꾸는 것 | 이유 |
 | --- | --- |
 | `app.py`가 10초마다 `[stats] fps=… embed_ms=…` 줄, 새 크롭마다 `[item] 검출기=… → 라벨=… (점수)` 줄, 끝날 때 `[summary] fps 평균 … 임베딩 평균 …` 줄을 **터미널에** 찍는다 | 1차에 화면 숫자를 못 받았다. 터미널 기록이면 보드 담당이 그대로 보낼 수 있다. 사진은 안 남기고 글자만 찍는다 |
-| Ctrl+C 때 스트림·카메라 루프를 먼저 멈추고, 웹 서버는 2초만 기다린 뒤 끝낸다 | 1차에 끌 때마다 멈췄다 |
+| Ctrl+C 때 카메라 루프를 먼저 멈추고 그 스레드 안에서 `cap.release()`, 영상 스트림도 멈추고, 웹 서버는 2초만 기다린 뒤 끝낸다 | 1차에 끌 때마다 D 상태로 멈췄다. 드라이버 문제라면 이걸로도 안 고쳐질 수 있어서, 2차에서 고쳐졌는지 그대로 적는다(기준 6에는 넣지 않는다) |
 | 드럼 세탁기는 **종이에 뽑은 사진**으로 보여 준다(없으면 태블릿, 휴대폰·노트북 화면은 안 씀) | 3번 준비물대로. 화면 기기가 같이 잡히지 않게 |
 | 모드마다 검색창에 "세탁기", "건전지"를 넣고 1위 카드의 이름·점수를 적는다 | 기준 1의 검색 확인 기록이 없었다 |
 
@@ -252,6 +255,6 @@ grep -h '^\[summary\]' ~/eg2-재웅/media/app-8b-*.txt
 curl -s localhost:8080/health; echo; free -h; ls ~/eg2-재웅/crops 2>/dev/null
 ```
 
-- Ctrl+C 뒤 2~3초 안에 `[summary]`가 찍히고 다음 모드로 넘어가야 한다. 10초 넘게 멈추면 화면을 보내고, 그때만 다른 창에서 `pkill -u $USER -f 'app.py'`.
+- Ctrl+C 뒤 2~3초 안에 `[summary]`가 찍히고 다음 모드로 넘어가야 한다. 10초 넘게 멈추면 다른 창에서 `ps -o pid,stat,wchan:30,cmd -u $USER | grep app.py`(멈춘 곳 확인)를 보내고, 그다음 1차처럼 `kill -9`. `[summary]`는 멈추기 전에 찍히므로 숫자는 남는다.
 - `media/app-8b-*.txt`는 글자 기록뿐이고 `media/`라 커밋되지 않는다. 보고서를 다 쓰면 지운다.
 - 2차도 미통과면 원인과 바꿀 것을 여기에 먼저 적고 3차로 간다. 예: relabel fps가 10 미만이면 원문 확인 포인트대로 `SIZE=640x480`.
