@@ -52,7 +52,7 @@
 
 ## 3. 순서 (보드 A, 자기 계정으로 SSH)
 
-SSH는 노트북에서 `ssh jaeung@10.220.222.60` (랜선) 또는 Tailscale `ssh jaeung@100.113.228.46`.
+SSH는 노트북에서 Tailscale 주소로 `ssh jaeung@100.113.228.46` (기본). 같은 교육장 망이면 와이파이 `172.27.108.43`도 된다.
 
 ### 3-1. 시작 전 확인 (읽기만)
 
@@ -96,7 +96,7 @@ snap monitor   # (다른 장면) 모니터나 창문, 문 등
 
 - `Device or resource busy` → 다른 프로그램이 카메라를 쓰는 중. `cat /tmp/practice.who.*`
 - `Invalid argument`나 크기 관련 오류 → 화면을 보낸다(웹캠이 640x480을 지원하지 않는 경우).
-- 노트북·휴대폰 사진을 써도 된다. 그때는 노트북에서 `scp empty.jpg class.jpg board.jpg jaeung@10.220.222.60:~/eg2-재웅/media/` (이름 약속은 같다)
+- 노트북·휴대폰 사진을 써도 된다. 그때는 노트북에서 `scp empty.jpg class.jpg board.jpg jaeung@100.113.228.46:~/eg2-재웅/media/` (이름 약속은 같다)
 
 ### 3-4. 동영상 10초 찍기와 프레임 뽑기
 
@@ -121,7 +121,7 @@ cd ~/eg2-재웅
 ~/practice.sh 재웅 python3 -m http.server 8001 -d media
 ```
 
-노트북 브라우저에서 `http://10.220.222.60:8001` (Tailscale이면 `http://100.113.228.46:8001`). 사진을 다 봤으면 **Ctrl+C로 끈다.** 켜 둔 동안은 자물쇠가 잠겨 있어서 다른 `~/practice.sh` 명령이 막힌다.
+노트북 브라우저에서 `http://100.113.228.46:8001` (Tailscale). 사진을 다 봤으면 **Ctrl+C로 끈다.** 켜 둔 동안은 자물쇠가 잠겨 있어서 다른 `~/practice.sh` 명령이 막힌다.
 
 이름과 내용이 안 맞으면(예: `empty.jpg`에 사람이 찍힘) 3-3으로 돌아가 다시 찍는다. 이것은 검색 결과를 보기 전이라 괜찮다.
 
