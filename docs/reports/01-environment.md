@@ -4,6 +4,7 @@
 > 원문: 실습 README의 "1단계 환경 준비"
 > 팀 규칙: `AIP-1-5/docs_embedding_gemma2`의 README (특히 2·3·4·5·7·11번, 2026-10-23 `4901dbf` 기준)
 > 우리 보드: A·B 모두 **JetPack 7.2.1 (Ubuntu 24.04, Python 3.12)**, 전원 모드 MAXN SUPER (팀 README 2번 "보드 A·B 정보")
+> 보드 A 실제 확인(2026-10-23): `nv_tegra_release`가 **R39 (REVISION 2.1)**, `/usr/local/cuda` 없음, SSD로 부팅 중, `/swapfile` 8GB 있음, `~/practice.sh` 아직 없음 (7번 표)
 
 이 단계가 끝나면 각자 보드 계정에 GPU가 실제로 계산하는 파이썬 환경(`~/eg2`)이 생긴다. 2단계부터 모든 단계가 이 환경 위에서 돈다.
 
@@ -65,8 +66,10 @@ echo "== 센서 서비스(보드 A)"; curl -s -m 3 localhost:8080/v1/health || e
 
 | 본 것 | 판단 |
 | --- | --- |
-| `nv_tegra_release`가 `R38`, `lsb_release`가 24.04, `python3 -V`가 3.12 | **JetPack 7** (우리 보드의 기대값) → 5-3에서 JetPack 7 명령 |
+| `nv_tegra_release`가 `R38` 또는 `R39`, `lsb_release`가 24.04, `python3 -V`가 3.12 | **JetPack 7** (우리 보드의 기대값. 보드 A는 R39) → 5-3에서 JetPack 7 명령 |
 | `R36`, 22.04, 3.10 | JetPack 6 → 5-3에서 JetPack 6 명령. 팀 README의 보드 정보와 다르니 재웅에게 알린다 |
+| `R` 번호가 처음 보는 값 | **`python3 -V`로 판단한다.** 3.12면 JetPack 7 경로, 3.10이면 JetPack 6 경로. 원문은 R36·R38만 적었지만 JetPack 7.2는 R39로 나온다 |
+| `/usr/local/cuda`가 없고 `nvcc`도 없음 | 문제 아님. JetPack 7 torch 휠(cu132)은 필요한 CUDA 라이브러리를 pip로 같이 받는다. CUDA 툴킷 설치(`apt install nvidia-jetpack`, 수 GB)는 하지 않는다. 판단 기준은 5-4 GPU 확인 결과다 |
 | `nvme0n1`의 MOUNTPOINT가 `/` | SSD로 부팅 중. 4-A(SSD)는 건너뛴다. 스왑은 `/swapfile`, 캐시는 홈 폴더 |
 | `nvme0n1p1`이 `/ssd`에 마운트돼 있음 | 이미 준비됨. 4-A는 건너뛴다 |
 | `nvme0n1p1`에 FSTYPE(ext4 등)이 있는데 마운트 안 됨 | **포맷 금지.** 4-A의 "마운트만" 명령을 쓴다. 안에 뭐가 있는지 먼저 본다 |
@@ -185,7 +188,7 @@ pip install -U pip wheel
 
 3번에서 확인한 JetPack 버전에 맞는 **한 덩어리만** 실행한다. torch 휠은 수백 MB라 받기 전에 `df -h ~`를 한 번 더 본다. 그냥 `pip install torch`는 CPU 전용이라 안 된다.
 
-**JetPack 7 (R38, Python 3.12) — 우리 보드 A·B는 이것**:
+**JetPack 7 (R38·R39, Python 3.12) — 우리 보드 A·B는 이것**:
 
 ```bash
 source ~/eg2/bin/activate
@@ -205,7 +208,9 @@ pip install torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 \
 
 ### 5-4. GPU 확인 (성공 기준)
 
-`재웅` 자리에 자기 이름을 쓴다. `~/practice.sh`가 아직 없으면 팀 문서 저장소 README 4번의 "처음 한 번만 만들기"를 먼저 한다.
+`재웅` 자리에 자기 이름을 쓴다.
+
+`~/practice.sh`가 있는지 먼저 본다: `ls -l ~/practice.sh`. 없다고 나오면(보드 A는 2026-10-23 기준 아직 없음) 팀 문서 저장소 README 4번의 "처음 한 번만 만들기" 덩어리를 **자기 개인 계정에서** 붙여 넣는다. 계정마다 홈이 따로라 사람마다 한 번씩 만든다. 자물쇠(`/tmp/practice.lock`)는 보드 전체가 같이 쓰니 계정이 달라도 서로 막힌다.
 
 ```bash
 source ~/eg2/bin/activate
@@ -244,7 +249,7 @@ free -h; df -h / /ssd 2>/dev/null
 | `externally-managed-environment` | venv가 켜지지 않은 채 시스템 pip를 씀 | `source ~/eg2/bin/activate` 후 다시. `--break-system-packages`는 쓰지 않는다 |
 | `python3 -m venv`가 실패 | `python3-venv`가 없음 | sudo 담당에게 4-D를 부탁 |
 | `PyTorch has CUDA version 13.2 whereas TorchAudio has CUDA version 13.0` | PyPI torchaudio가 깔림 | `pip uninstall -y torchaudio` (원문 Q7) |
-| `nvcc: command not found` | CUDA는 있는데 PATH에 없음 | torch는 nvcc 없이도 된다. JetPack 판단은 `nv_tegra_release`로 한다 |
+| `nvcc: command not found` | CUDA 툴킷이 PATH에 없거나 아예 없음 (보드 A는 `/usr/local/cuda` 자체가 없다) | torch는 nvcc 없이도 된다. 툴킷을 설치하지 않는다. JetPack 판단은 `python3 -V`와 `nv_tegra_release`로 한다 |
 | `no kernel image` / `sm_87` 경고 | JetPack에 안 맞는 휠 | `pip uninstall -y torch torchvision torchaudio` 후 맞는 5-3 덩어리로 다시 |
 | `curl -sI` 결과가 `302` | 인덱스 서버의 정상 넘겨주기 | 문제 아님. pip는 알아서 따라간다 |
 | `Failed to connect to bus` (practice.sh) | SSH 세션에 사용자 systemd가 없음 | 화면을 그대로 보낸다. 그냥 python으로 우회하지 않는다 |
@@ -255,11 +260,13 @@ free -h; df -h / /ssd 2>/dev/null
 
 | 항목 | 보드 A | 보드 B |
 | --- | --- | --- |
-| 실행한 사람 / 날짜 | | |
-| JetPack (`nv_tegra_release`) / Python | | |
-| SSD | (이미 마운트 / 새로 마운트 / 없음) | |
+| 실행한 사람 / 날짜 | 시작 전 확인만 (2026-10-23) | |
+| JetPack (`nv_tegra_release`) / Python | R39 (REVISION 2.1) / _(확인 필요)_ | |
+| SSD | SSD로 부팅 중 (4-A 건너뜀) | |
 | 전원 모드 (`nvpmodel -q`, 확인만) | | |
-| 스왑 (`swapon --show`) | | |
+| 스왑 (`swapon --show`) | `/swapfile` 8GB 있음 (4-C 건너뜀) | |
+| CUDA 툴킷 | `/usr/local/cuda` 없음 (설치하지 않음) | |
+| `~/practice.sh` | 아직 없음 → 5-4 전에 만든다 | |
 | 남은 디스크 (`df -h`, 시작 전 → 후) | | |
 | torch 버전 | | |
 | GPU 확인 출력 (그대로 붙여 넣기) | | |
