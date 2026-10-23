@@ -20,9 +20,14 @@ def device():
     return "cpu"
 
 
-def build_evaluator(path="data/eval.jsonl", name="classroom", truncate_dim=None):
+def build_evaluator(path="data/eval.jsonl", name="classroom", truncate_dim=None, extra=None):
     rows = [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
     corpus, queries, relevant, doc_id = {}, {}, {}, {}
+    # extra: 정답은 아니지만 검색 대상에 섞을 문서 파일 (7단계 3차: 연습 시험을 어렵게)
+    for l in (open(extra, encoding="utf-8") if extra else []):
+        if l.strip():
+            d = json.loads(l)["positive"]
+            corpus[doc_id.setdefault(d, f"x{len(doc_id)}")] = d
     for i, r in enumerate(rows):
         d = doc_id.setdefault(r["positive"], f"d{len(doc_id)}")
         corpus[d] = r["positive"]
@@ -44,15 +49,16 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("model", nargs="?", default="google/embeddinggemma-2")
     ap.add_argument("--data", default="data/eval.jsonl")
+    ap.add_argument("--extra", help="오답 후보로 섞을 문서 파일 (예: data/train2.jsonl)")
     ap.add_argument("--out", help="결과를 JSON으로 저장할 경로 (예: runs/eval-base.json)")
     a = ap.parse_args()
 
     model = load_model(a.model)
     print(f"모델 {a.model}  장치 {model.device}")
-    result = {"model": a.model, "data": a.data, "dims": {}}
+    result = {"model": a.model, "data": a.data, "extra": a.extra, "dims": {}}
     for dim in DIMS:
         t = time.perf_counter()
-        res = build_evaluator(a.data, truncate_dim=None if dim == 768 else dim)(model)
+        res = build_evaluator(a.data, truncate_dim=None if dim == 768 else dim, extra=a.extra)(model)
         row = {k: round(res[f"classroom_cosine_{k}"], 3)
                for k in ["accuracy@1", "accuracy@3", "accuracy@5", "ndcg@10"]}
         result["dims"][dim] = row
