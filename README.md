@@ -16,4 +16,7 @@
 | `eval_ir.py` | 7단계 평가: `eval.jsonl`로 accuracy@1/3/5·ndcg@10, 768/512/256/128차원 (학습 전후) |
 | `train_ft.py` | 7단계 미세조정 (맥에서만, 원문 설정 그대로, 끊기면 이어서) |
 | `app.py` | 8단계 웹캠 물체 추출·검색 (`--mode yolo`/`relabel`/`yoloe`, 포트 8001, Tailscale에만, 원본 모델) |
+| `pose_app.py` | 9단계 사람 동작 인식 (`--raw`/기본/`--behavior`/`--record`/`--model`, 포트 8001, Tailscale에만, 사진 저장 안 함) |
+| `pose_model.py` | 9단계 공통: 관절 특징과 GRU 모델 |
+| `train_pose.py` | 9-6 GRU 학습 (맥에서만, 보드에서 켜면 멈춤) |
 | `docs/reports/NN-*.md` | 단계별 안내와 결과 보고서 |
