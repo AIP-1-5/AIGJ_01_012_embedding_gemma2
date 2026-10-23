@@ -26,7 +26,7 @@
 
 같이 확인할 것(통과 조건은 아니지만 보고서에 적는다):
 
-- 실습 후 보드 A에서 `curl -s localhost:8080/v1/health`가 응답한다 (공기 측정 서비스가 살아 있다)
+- 실습 후 보드 A에서 `curl -s localhost:8080/health`가 응답한다 (공기 측정 서비스가 살아 있다)
 - `free -h`의 Swap 줄에 추가한 스왑이 보인다
 
 ## 2. 우리 보드에서는 원문과 이렇게 다르게 한다
@@ -59,7 +59,7 @@ echo "== fstab";         grep -v '^#' /etc/fstab
 echo "== 스왑";          swapon --show
 echo "== JetPack";       cat /etc/nv_tegra_release; lsb_release -rs; python3 -V
 echo "== CUDA";          ls -d /usr/local/cuda* 2>/dev/null; nvcc --version 2>/dev/null | tail -1
-echo "== 센서 서비스(보드 A)"; curl -s -m 3 localhost:8080/v1/health || echo "응답 없음(보드 B면 정상)"
+echo "== 센서 서비스(보드 A)"; curl -s -m 3 localhost:8080/health || echo "응답 없음(보드 B면 정상)"
 ```
 
 출력을 보고 아래 표로 갈 길을 정한다.
@@ -233,7 +233,7 @@ cat ~/eg2/torch-pin.txt
 ### 5-6. 끝나고 (보드 A)
 
 ```bash
-curl -s localhost:8080/v1/health; echo
+curl -s localhost:8080/health; echo
 free -h; df -h / /ssd 2>/dev/null
 ```
 
