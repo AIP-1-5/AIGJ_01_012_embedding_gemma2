@@ -17,7 +17,9 @@ from eval_ir import build_evaluator, device
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--train", default="data/train.jsonl")
-ap.add_argument("--eval", default="data/eval.jsonl")
+ap.add_argument("--eval", default="data/eval.jsonl", help="epoch마다 지켜볼 평가 파일. ''이면 안 봄 (2차)")
+ap.add_argument("--lr", type=float, default=2e-5)
+ap.add_argument("--epochs", type=float, default=3)
 ap.add_argument("--run", default="runs/eg2-classroom", help="체크포인트 폴더")
 ap.add_argument("--out", default="models/eg2-classroom", help="완성 모델 폴더")
 a = ap.parse_args()
@@ -39,20 +41,20 @@ loss = MatryoshkaLoss(model, MultipleNegativesRankingLoss(model),
 
 args = SentenceTransformerTrainingArguments(
     output_dir=a.run,
-    num_train_epochs=3,
+    num_train_epochs=a.epochs,
     per_device_train_batch_size=8,
     gradient_accumulation_steps=2,
-    learning_rate=2e-5, warmup_steps=0.1,  # Transformers v5: 비율을 float로
+    learning_rate=a.lr, warmup_steps=0.1,  # Transformers v5: 비율을 float로
     bf16=True,
     batch_sampler=BatchSamplers.NO_DUPLICATES,   # 배치 안 중복 문서 방지
     prompts={"anchor": model.prompts["SearchQuery"],
              "positive": model.prompts["Document"]},
-    eval_strategy="epoch", save_strategy="epoch", save_total_limit=1,
+    eval_strategy="epoch" if a.eval else "no", save_strategy="epoch", save_total_limit=1,
     logging_steps=10, report_to="none",
 )
 
 trainer = SentenceTransformerTrainer(model=model, args=args, train_dataset=train,
-                                     loss=loss, evaluator=build_evaluator(a.eval))
+                                     loss=loss, evaluator=build_evaluator(a.eval) if a.eval else None)
 resume = any(Path(a.run).glob("checkpoint-*"))
 print("이어서 학습" if resume else "처음부터 학습")
 t = time.perf_counter()
@@ -60,6 +62,7 @@ trainer.train(resume_from_checkpoint=True if resume else None)
 minutes = (time.perf_counter() - t) / 60
 model.save_pretrained(a.out)
 Path(a.run).mkdir(parents=True, exist_ok=True)
-json.dump({"train_minutes": round(minutes, 1), "resumed": resume, "pairs": len(train)},
+json.dump({"train_minutes": round(minutes, 1), "resumed": resume, "pairs": len(train),
+           "lr": a.lr, "epochs": a.epochs},
           open(Path(a.run) / "train_time.json", "w"), indent=2)
 print(f"학습 {minutes:.1f}분, 저장: {a.out}")
