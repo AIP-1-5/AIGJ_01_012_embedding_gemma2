@@ -20,3 +20,6 @@ data/
 __pycache__/
 *.pyc
 .venv/
+
+# 7단계 학습 체크포인트·로그
+runs/
