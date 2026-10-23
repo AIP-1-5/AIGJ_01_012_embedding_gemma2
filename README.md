@@ -19,4 +19,5 @@
 | `pose_app.py` | 9단계 사람 동작 인식 (`--raw`/기본/`--behavior`/`--record`/`--model`, 포트 8001, Tailscale에만, 사진 저장 안 함) |
 | `pose_model.py` | 9단계 공통: 관절 특징과 GRU 모델 |
 | `train_pose.py` | 9-6 GRU 학습 (맥에서만, 보드에서 켜면 멈춤) |
+| `wave_check.py` | 9-2 2차 진단: 녹화한 손 흔들기 CSV로 손목 폭·신뢰도와 폭 기준별 WAVE 판정 비율 |
 | `docs/reports/NN-*.md` | 단계별 안내와 결과 보고서 |
