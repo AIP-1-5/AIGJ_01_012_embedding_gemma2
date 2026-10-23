@@ -240,7 +240,7 @@ free -h
 ### 6-1. 1차와 똑같이 두는 것
 
 - 질문 3개 문장, 정답 이름(`empty`·`class`·`board`), 판정 기준(768·512 6칸 PASS), 128은 참고
-- 코드: `test_vision.py`, `cam.py`를 고치지 않는다(main `7fdc91a` 기준)
+- 코드: `test_vision.py`, `cam.py`를 고치지 않는다(1차 실행 `14475f8`과 같은 내용. 그 뒤 두 파일은 바뀌지 않음)
 - 실행 방법: `~/practice.sh`, 시작 전 available 3GB 이상
 
 ### 6-2. 바꾸는 것: 사진 구성만 (1차 원인 분석에 따라)
