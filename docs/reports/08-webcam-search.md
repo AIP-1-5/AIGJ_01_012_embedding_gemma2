@@ -334,7 +334,7 @@ curl -s localhost:8080/health; echo; free -h; ls ~/eg2-재웅/crops 2>/dev/null
 | 건전지(AA)와 원통형 전지 포장을 **실물로 준비**하고, 표 6줄을 모두 채운다 | 2차에 빠진 칸 |
 | 건전지는 AA 대신 **AAA**를 쓴다 (재웅에게 AA가 없음, 2026-10-23 16:52 결정). `LABELS`의 "AA battery"는 그대로 두고, AAA에 "건전지"가 붙으면 정답으로 본다 | 실행 전에 정함. 같은 원통형 건전지라 원문 의도(COCO 밖 작은 물체)와 같다 |
 | 세탁기는 종이 사진(못 구하면 2차처럼 모니터 한 장 화면 가득, 그 사실을 적음) | 조건 차이를 줄이려고 |
-| 앱을 끌 때는 **python에만** 신호를 보낸다: 다른 창에서 `pkill -INT -u $USER -f 'python app.py'` | 2차에 창 전체 Ctrl+C로 `tee`가 먼저 꺼져 `[summary]`가 빠졌다 |
+| 앱을 끌 때는 **python에만** 신호를 보낸다: 다른 창에서 `pkill -INT -u $USER -f '^/home/jaeung/eg2/bin/python app.py'` | 2차에 창 전체 Ctrl+C로 `tee`가 먼저 꺼져 `[summary]`가 빠졌다 |
 
 알고 있는 위험: 이 규칙은 세탁기 고치기도 막을 수 있다. microwave 문장과 세탁기 문장의 점수 차이가 0.03 이내라면 relabel은 다시 "전자레인지"가 된다(기준 4는 yoloe만으로도 충족 가능). 그 결과도 그대로 적는다.
 
@@ -348,7 +348,7 @@ source ~/eg2/bin/activate
 for m in yolo relabel yoloe; do
   echo "=== $m: 컵 → 노트북 → 휴대폰 → 원통형 전지 포장 → 건전지 → 세탁기, 각 5초. 검색 '세탁기'·'건전지'"
   tegrastats --interval 1000 --logfile ~/eg2-재웅/media/tegra-8c-$m.log &
-  ~/practice.sh 재웅 python app.py --mode $m > ~/eg2-재웅/media/app-8c-$m.txt 2>&1   # 끄기: 다른 창에서 pkill -INT -u $USER -f 'python app.py'
+  ~/practice.sh 재웅 python app.py --mode $m > ~/eg2-재웅/media/app-8c-$m.txt 2>&1   # 끄기: 다른 창에서 pkill -INT -u $USER -f '^/home/jaeung/eg2/bin/python app.py'
   kill %1
   grep -o 'RAM [0-9]*/[0-9]*MB' ~/eg2-재웅/media/tegra-8c-$m.log | sort -t' ' -k2 -n | tail -1
   grep -E '^\[(item|summary)\]' ~/eg2-재웅/media/app-8c-$m.txt
@@ -365,7 +365,7 @@ curl -s localhost:8080/health; echo; free -h; ls ~/eg2-재웅/crops 2>/dev/null
 | 컵 | 맞음 | 맞음 | 맞음 | |
 | 노트북 | 맞음 | 맞음 | 맞음 | |
 | 휴대폰 | 맞음 | **휴대폰 그대로** (두 번 모두, 검출기 이름이 유사도 1위) | 맞음 | 2차 오교정이 사라짐 |
-| 드럼 세탁기 (모니터 한 장) | 전자레인지 | **통돌이·드럼 세탁기** (전자레인지 문장과 차이 약 0.05 → 고침) | **드럼 세탁기** | |
+| 드럼 세탁기 (모니터 한 장) | 전자레인지 | **통돌이·드럼 세탁기** (0.720·0.714, 전자레인지 문장 0.662·0.661 → 차이 0.058·0.053이라 고침) | **드럼 세탁기** | |
 | 원통형 전지 포장 | 물체 없음 | 물체 없음 | 물체 없음 | 준비 못 함 |
 | 건전지 (AAA) | 책 | **건전지 (0.757**, 책 0.591 → 고침) | 책 | |
 | (참고) 펜 | 박스 없음 | 박스 없음 | 박스 없음 | 검색 "펜" 1위는 세 모드 모두 컵 |
@@ -411,4 +411,6 @@ curl -s localhost:8080/health; echo; free -h; ls ~/eg2-재웅/crops 2>/dev/null
 | 바꾸는 것 | **원통형 전지 포장 실물**(18650 등 전지가 든 포장)을 준비해 세 모드에서 보여 준다. 다른 5개 물체도 같은 순서로 다시 보여 주고 결과가 3차와 같은지 적는다(한 줄만 골라 재지 않게) |
 | 대체 | 전지 포장을 끝내 못 구하면 4차를 하지 않고 3차 미통과를 최종으로 둔다. 다른 물건을 "전지 포장"으로 바꿔 부르지 않는다 |
 
-명령은 9-3과 같다(`app-8d-*`, `tegra-8d-*`로 이름만 바꿈).
+명령은 9-3과 같다(`app-8d-*`, `tegra-8d-*`로 이름만 바꿈). 끌 때 `pkill` 패턴은 앞에 `^/home/jaeung/eg2/bin/`을 붙여 python만 맞춘다(그냥 `'python app.py'`면 그 글자가 든 셸까지 꺼진다, 3차에서 확인).
+
+참고(3차 원자료): yolo·relabel에서 모니터는 `tv`로 잡혔고 `tv`는 `LABELS`에 없어 검출기점수가 `nan`이다. relabel은 이를 "모니터"(0.704)로 바꿨다(원문 규칙대로).
