@@ -15,4 +15,5 @@
 | `bench.py` | 6단계 성능 측정: 모양별(`text`·`vision`·`audio`·`all`) 로드 후 RAM·지연·GPU 사용률, `table`로 원문 표 출력 |
 | `eval_ir.py` | 7단계 평가: `eval.jsonl`로 accuracy@1/3/5·ndcg@10, 768/512/256/128차원 (학습 전후) |
 | `train_ft.py` | 7단계 미세조정 (맥에서만, 원문 설정 그대로, 끊기면 이어서) |
+| `app.py` | 8단계 웹캠 물체 추출·검색 (`--mode yolo`/`relabel`/`yoloe`, 포트 8001, Tailscale에만, 원본 모델) |
 | `docs/reports/NN-*.md` | 단계별 안내와 결과 보고서 |
