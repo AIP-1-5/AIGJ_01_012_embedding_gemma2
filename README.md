@@ -1,0 +1,1 @@
+# AIGJ_01_012_embedding_gemma2
