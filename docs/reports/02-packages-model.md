@@ -1,6 +1,6 @@
 # 2단계 패키지·모델 설치 (sentence-transformers · EmbeddingGemma 2 · 공통 로더)
 
-> 상태: **보드 A 진행 중** (2026-10-23, 4-3까지: torch `2.14.1+cu132` 유지, sentence-transformers `6.2.0`, transformers `5.20.1`, 모델 gated 아님)
+> 상태: **보드 A 통과 (2026-10-23)**
 > 원문: 실습 README의 "2단계 패키지·모델 설치"
 > 앞 단계: [01-environment.md](01-environment.md) — 보드 A 통과 (torch `2.14.1+cu132`, `~/eg2`, `~/eg2/torch-pin.txt`, `HF_HOME=~/.cache/huggingface`)
 > 결정(2026-10-23): 재웅은 10단계까지 **보드 A**만 쓴다. 모델은 **계정마다 따로** 받는다(공용 폴더 아님).
@@ -215,20 +215,34 @@ free -h; df -h /
 
 | 항목 | 보드 A |
 | --- | --- |
-| 실행한 사람 / 날짜 | |
-| 모델 동의 필요 여부 (4-2 `gated`) | |
-| HF 토큰 (`~/eg2/.env`, 권한 600) | (넣었음/안 넣음만 적는다. 값은 절대 적지 않는다) |
-| 설치 뒤 torch 버전 (`pip freeze`) | |
-| `check.py` 출력 | |
-| transformers / sentence-transformers 버전 | |
-| 모델 캐시 크기 (`du -sh $HF_HOME/hub`) | |
-| 남은 디스크 (시작 전 → 후) | |
-| `m.encode('test').shape` | |
-| 첫 로드 시간 (`time`) | |
-| 끝난 뒤 메모리 (`free -h` available) | |
-| 센서 서비스 (`curl localhost:8080/health`) | |
-| **성공 기준** | |
+| 실행한 사람 / 날짜 | 재웅 (Claude 보드 A 세션이 실행) / 2026-10-23 |
+| 실행한 코드 커밋 | `0f09e70` (모델 snapshot `914f7f89`) |
+| 모델 동의 필요 여부 (4-2 `gated`) | `false` (동의·토큰 필요 없음) |
+| HF 토큰 (`~/eg2/.env`) | 안 넣음 |
+| 설치 뒤 torch 버전 (`pip freeze`) | torch `2.14.1+cu132`, torchvision `0.29.1+cu132` 그대로. 딸려 깔린 torchaudio `2.11.0`은 지움 |
+| `check.py` 출력 | `torch 2.14.1+cu132 cuda True` / `transformers 5.20.1` / `sentence-transformers 6.2.0` |
+| 기타 바뀐 패키지 | numpy `2.5.4` → `1.26.4` (2단계에서는 문제없음) |
+| 모델 캐시 크기 (`du -sh $HF_HOME/hub`) | 1.5GB (다운로드 3분 40초) |
+| 남은 디스크 (시작 전 → 후) | 169G → 167G |
+| `m.encode('test').shape` | **`(768,)`** |
+| 첫 로드 + encode 시간 (`time`) | real 22.1초 |
+| 실행 중 보드 메모리 | used 최대 3773MB, available 최소 3712MB |
+| 끝난 뒤 메모리 (`free -h` available) | 4.8Gi |
+| 센서 서비스 (`curl localhost:8080/health`) | ok, failures 0 |
+| **성공 기준** | **통과** |
 
-**왜 이렇게 나왔는지:** (실행 후 채운다)
+**왜 이렇게 나왔는지:**
 
-**다음에 할 일:** 3단계 텍스트 테스트 (`test_text.py`, 질의/문서 프롬프트로 한국어 검색, 768/256/128차원 비교).
+- `check.py`에서 `cuda True`가 나왔다. `-c ~/eg2/torch-pin.txt` 덕분에 sentence-transformers를 깔아도 GPU용 torch가 CPU용으로 바뀌지 않았다.
+- 고정 파일에는 torch·torchvision만 있어서 torchaudio는 막지 못했다. `sentence-transformers[audio]`가 torchaudio를 끌고 왔고, 그대로 두면 원문 Q7 오류가 나므로 설치 직후 지웠다(4-3에 반영함).
+- `(768,)`이 나왔다. `load()`가 텍스트 인코더만 bfloat16으로 GPU에 올려서 `"test"`를 숫자 768개짜리 벡터로 바꿨다는 뜻이다.
+- 모델이 `gated:false`라 토큰 없이 받았다. 그래서 실행할 때 `You are sending unauthenticated requests` 경고가 나오는데 오류는 아니다(원문 Q8).
+- 텍스트만 올렸는데도 보드 전체 사용량이 최대 3.8GB까지 갔다(센서·추론 서비스 포함). 그래도 available이 3.7GB 아래로는 안 내려가 여유가 있었다. 비전·오디오를 같이 올리는 4·5단계에서는 더 빠듯해질 수 있다.
+- numpy가 1.26.4로 내려갔다. 지금은 문제없지만, 원문 Q12에 따르면 8단계의 OpenCV·ultralytics는 numpy 2.x를 원할 수 있다. 8단계 설치 때 확인한다.
+
+**다음에 할 일:**
+
+- 3단계 텍스트 테스트 (`test_text.py`, 질의/문서 프롬프트로 한국어 검색, 768/256/128차원 비교).
+- 3단계부터는 모델을 다 받았으니 `HF_HUB_OFFLINE=1`을 켜서 네트워크 확인과 경고를 없앤다.
+- 앞으로 pip 설치가 있는 단계(3단계 포함)는 설치 뒤 `pip freeze | grep -E '^(torch|torchvision|torchaudio)=='`로 확인하고, torchaudio가 보이면 지운다.
+- 8단계 설치 때 numpy 버전(지금 1.26.4)을 다시 본다.
