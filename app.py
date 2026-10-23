@@ -6,6 +6,8 @@
 #   - 메모리 감시: 시작 전 available 3GB 미만이면 안 켬, 도는 중 1GB 미만이면 바로 끝냄, GPU 몫 0.3
 #   - 임베딩 배치 기본 2 (원문 8), ultralytics 자동 pip 설치 끔 (torch가 바뀌지 않게)
 #   - 끝나면 crops/<mode>를 지운다(--keep-crops로 남김). 사람이 찍힌 사진은 남기지 않는 팀 원칙
+#   - 10초마다 [stats] 줄, 새 크롭마다 [item] 줄(라벨·점수)을 터미널에 찍는다 (8단계 2차: 화면 숫자를 못 받은 문제)
+#   - Ctrl+C 때 영상 스트림·카메라를 먼저 멈추고 2초 안에 끝낸다 (8단계 1차: 끌 때마다 멈춤)
 import os
 os.environ["YOLO_AUTOINSTALL"] = "False"          # ultralytics가 몰래 pip install 하지 않게 (torch 고정 지키기)
 os.environ["EG2_MODEL"] = "google/embeddinggemma-2"   # 7단계 미세조정 모델이 아니라 원본 (eg2.py가 읽음)
@@ -93,6 +95,8 @@ items = []          # {id, cls, conf, ts, img, vec}
 seen = {}           # track_id -> 마지막 임베딩 시각
 track_label = {}    # track_id -> (영문 라벨, 한글 라벨, 점수)
 stats = {"fps": 0.0, "embed_ms": 0.0, "avail_mb": avail0, "min_avail_mb": avail0}
+fps_log, ms_log = [], []   # 끝날 때 평균을 내려고 1초마다의 fps, 배치마다의 ms/개를 모은다
+running = threading.Event(); running.set()   # Ctrl+C 때 꺼서 스트림·카메라 루프를 멈춘다
 
 
 def capture_loop():
@@ -105,7 +109,7 @@ def capture_loop():
         print(f"/dev/video{CAM}을 열 수 없다 (live.py 등 다른 프로그램이 쓰는 중인지 확인, 원문 Q11)", flush=True)
         os._exit(2)
     t0, n = time.time(), 0
-    while True:
+    while running.is_set():
         ok, frame = cap.read()
         if not ok:
             time.sleep(0.1); continue
@@ -134,12 +138,14 @@ def capture_loop():
         n += 1
         if now - t0 >= 1:
             stats["fps"], t0, n = n / (now - t0), now, 0
+            fps_log.append(stats["fps"])
         cv2.putText(vis, f"{stats['fps']:.1f} fps | indexed {len(items)}", (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
         ok, buf = cv2.imencode(".jpg", vis, [cv2.IMWRITE_JPEG_QUALITY, 75])
         if ok:
             with frame_lock:
                 latest_jpeg = buf.tobytes()
+    cap.release()
 
 
 def embed_loop():
@@ -159,6 +165,7 @@ def embed_loop():
             vecs = emb.encode([{"image": p} for p in paths],
                               truncate_dim=DIM, normalize_embeddings=True)
         stats["embed_ms"] = (time.perf_counter() - t) * 1000 / len(paths)
+        ms_log.append(stats["embed_ms"])
         vecs = np.asarray(vecs, dtype=np.float32)
         sims = vecs @ label_vecs.T
         with idx_lock:
@@ -171,6 +178,7 @@ def embed_loop():
                 else:
                     en, ko, ls = name, name, float(sim[j])
                 track_label[tid] = (en, ko, ls)
+                print(f"[item] id={tid} 검출기={name} {cf:.2f} → 라벨={ko} ({ls:.3f})", flush=True)
                 items.append({"id": tid, "cls": name, "label": ko, "lscore": round(ls, 3),
                               "conf": round(cf, 2), "ts": ts, "img": "/" + p, "vec": v})
             while len(items) > MAX_ITEMS:
@@ -184,6 +192,9 @@ def mem_watch():
     while True:
         a = mem_available_mb()
         stats["avail_mb"], stats["min_avail_mb"] = a, min(stats["min_avail_mb"], a)
+        if int(time.time()) % 10 == 0:
+            print(f"[stats] fps={stats['fps']:.1f} embed_ms={stats['embed_ms']:.0f}/개 "
+                  f"available={a} 최저={stats['min_avail_mb']} indexed={len(items)}", flush=True)
         if a < KILL_MIN_MB:
             print(f"available {a} MB < {KILL_MIN_MB} MB: 바로 끝낸다", flush=True)
             cleanup()
@@ -192,7 +203,11 @@ def mem_watch():
 
 
 def cleanup():
-    print(f"도는 중 available 최저 {stats['min_avail_mb']} MB", flush=True)
+    running.clear()
+    avg = lambda v: sum(v) / len(v) if v else 0.0
+    print(f"[summary] mode={MODE} fps 평균 {avg(fps_log[3:]):.1f} (첫 3초 뺌), "
+          f"임베딩 평균 {avg(ms_log[1:]):.0f} ms/개 (첫 배치 뺌, 배치 {BATCH}), "
+          f"도는 중 available 최저 {stats['min_avail_mb']} MB", flush=True)
     if not args.keep_crops:
         shutil.rmtree(CROP_DIR, ignore_errors=True)
         print(f"{CROP_DIR} 지움", flush=True)
@@ -211,7 +226,7 @@ def public(it, score=None):
 @app.get("/stream")
 def stream():
     def gen():
-        while True:
+        while running.is_set():
             with frame_lock:
                 f = latest_jpeg
             if f:
@@ -277,6 +292,8 @@ if __name__ == "__main__":
     threading.Thread(target=mem_watch, daemon=True).start()
     print(f"브라우저에서 http://{args.host}:{args.port} (끝내려면 Ctrl+C)", flush=True)
     try:
-        uvicorn.run(app, host=args.host, port=args.port)
+        uvicorn.run(app, host=args.host, port=args.port, timeout_graceful_shutdown=2)
     finally:
         cleanup()
+        time.sleep(0.5)   # 카메라 루프가 cap.release()까지 가도록
+        os._exit(0)       # 남은 스레드·CUDA 정리를 기다리지 않는다

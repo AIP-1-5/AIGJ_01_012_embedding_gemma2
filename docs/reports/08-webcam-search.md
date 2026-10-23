@@ -1,6 +1,6 @@
 # 8단계 웹캠 실시간 물체 추출과 웹 검색
 
-> 상태: **준비 (실행 전, 2026-10-23)**. 코드(`app.py`)와 순서만 적었다. 보드 실행은 7단계 보드 평가가 끝난 뒤에 한다.
+> 상태: **보드 A 1차 미통과 (2026-10-23 16:29 KST)**. 기준 2(표 빈칸)를 못 채웠고 기준 5(relabel fps)는 숫자를 못 받아 판정 못 함. 라벨 개선(기준 3·4)은 충족. 2차 계획은 7번(실행 전에 적음)
 > 원문: 실습 README의 "8단계 웹캠 실시간 물체 추출과 웹 검색"
 > 앞 단계: [04-vision-search.md](04-vision-search.md)(글로 사진 찾기, 비전 인코더), [06-performance.md](06-performance.md)(텍스트+비전 도는 중 available 최저 2.2GB), [07-finetune.md](07-finetune.md)
 > 우리 보드: 보드 A, USB 웹캠 1대, 모니터 없음 → 영상·검색은 **노트북 브라우저**(`http://100.113.228.46:8001`)로 본다.
@@ -103,14 +103,16 @@ cd ~/eg2-재웅 && git pull && git log -1 --oneline   # 보고서에 적을 커�
 source ~/eg2/bin/activate
 pip install -c ~/eg2/torch-pin.txt --no-deps ultralytics ultralytics-thop
 pip install -c ~/eg2/torch-pin.txt "numpy==1.26.4" "opencv-python-headless==4.11.0.86" \
-  fastapi "uvicorn[standard]" matplotlib pyyaml requests scipy psutil polars pillow tqdm
+  fastapi "uvicorn[standard]" matplotlib pyyaml requests scipy psutil polars pillow tqdm lap
+pip install -c ~/eg2/torch-pin.txt --no-deps "git+https://github.com/ultralytics/CLIP.git"
+pip install -c ~/eg2/torch-pin.txt "numpy==1.26.4" ftfy regex
 pip uninstall -y opencv-python 2>/dev/null; pip freeze | grep -E '^(torch|torchvision|torchaudio|numpy|opencv.*|ultralytics)=='
 python -c "import cv2, numpy, torch, ultralytics, fastapi; print(cv2.__version__, numpy.__version__, torch.cuda.is_available(), ultralytics.__version__)"
 ```
 
 - 기대: torch `2.14.1+cu132`, torchvision `0.29.1+cu132`, numpy `1.26.4`, opencv-python-headless `4.11.0.86`, `cuda True`. torchaudio 줄이 보이면 `pip uninstall -y torchaudio`.
 - `ImportError: ... No module named X`가 나오면 `pip install -c ~/eg2/torch-pin.txt "numpy==1.26.4" X`로 그것만 깔고 다시 확인한다(화면을 보내 주면 목록에 반영).
-- YOLOE 텍스트 인코더가 `clip` 패키지를 요구하면(8-3 첫 실행 때 `No module named 'clip'`): `pip install -c ~/eg2/torch-pin.txt --no-deps "git+https://github.com/ultralytics/CLIP.git" ftfy regex` (추정, 보드에서 확인).
+- 보드 A 1차에서 실제로 더 필요했던 것: `lap`(0.5.13, YOLO 추적. 없으면 카메라 스레드가 죽는다), YOLOE 텍스트 인코더용 `clip`(ultralytics CLIP, `--no-deps`)·`ftfy`·`regex`(+`wcwidth`). 위 명령에 넣었다.
 
 ### 4-3. 8-1 기준선 (`yolo`)
 
@@ -179,31 +181,80 @@ ls ~/eg2-재웅/crops 2>/dev/null   # 비어 있어야 한다 (남았으면 rm -
 | `get_text_pe` 관련 오류 | ultralytics 버전 차이 | 코드가 이름만 넘기는 방식으로 다시 시도한다. 그래도 나면 화면을 보낸다 |
 | 브라우저가 안 열림 | 노트북이 Tailscale에 없음 | 노트북 Tailscale을 켠다 |
 
-## 6. 결과 (8-4)
+## 6. 1차 결과 (8-4, 2026-10-23 16:29 KST, 보드 A, main `aa97889`)
 
-_보드 실행 뒤 채운다._
+실행은 보드 A 담당이 했고, 물체를 보여 주고 라벨을 눈으로 확인한 건 재웅이다. 세 모드 모두 끝난 뒤 `crops/`는 지워졌고 센서 ok, available 4.6GB.
 
 | 물체 | yolo 라벨 | relabel 라벨 (점수) | yoloe 라벨 | 비고 |
 | --- | --- | --- | --- | --- |
-| 컵 |  |  |  |  |
-| 노트북 |  |  |  |  |
-| 휴대폰 |  |  |  |  |
-| 드럼 세탁기 (사진) |  |  |  |  |
-| 원통형 전지 포장 |  |  |  |  |
-| 건전지 |  |  |  |  |
+| 컵 | 맞음 | 맞음 (점수 못 받음) | 맞음 | |
+| 노트북 | 맞음 | 맞음 (점수 못 받음) | 맞음 | |
+| 휴대폰 | 맞음 | 맞음 (점수 못 받음) | 맞음 | |
+| 드럼 세탁기 (사진) | 미검출 | 드럼 세탁기 (점수 못 받음) | **판정 보류** (박스는 생김, 이름 휴대폰·키보드) | 사진을 **휴대폰·모니터 화면에** 띄웠다(3번 준비물과 다름). 그래서 세 모드 모두 이 줄은 참고로만 본다 |
+| 원통형 전지 포장 | 미검출 | 미검출 | 미검출 | |
+| 건전지 | 미검출 | 건전지 (점수 못 받음) | 미검출 | |
 
-| 모드 | 검출 fps | 임베딩 ms/개 (배치) | RAM (MB, tegrastats 최대) | 도는 중 available 최저 |
+"맞음"은 재웅이 영상 박스 이름을 보고 확인한 것이다. relabel 카드의 점수는 기록하지 못했다.
+
+| 모드 | 검출 fps | 임베딩 ms/개 (배치 2) | RAM (MB, tegrastats 최대) | 도는 중 available 최저 |
 | --- | --- | --- | --- | --- |
-| yolo |  |  |  |  |
-| relabel |  |  |  |  |
-| yoloe |  |  |  |  |
+| yolo | 못 받음 | 못 받음 | 5785 | 1639 MB |
+| relabel | 못 받음 | 못 받음 | 5227 | 2086 MB |
+| yoloe | 12.8 | 699 | 5297 | 2027 MB |
 
-| # | 기준 | 결과 |
-| --- | --- | --- |
-| 1 | 세 모드 실행·검색 동작 |  |
-| 2 | 표 빈칸 없음 |  |
-| 3 | COCO 물체 relabel에서도 정답 |  |
-| 4 | COCO 밖 물체 1개 이상 개선 |  |
-| 5 | relabel fps ≥ 10 |  |
-| 6 | 메모리 정지 없음, 센서 ok |  |
-| | **판정** |  |
+| # | 기준 | 결과 | |
+| --- | --- | --- | --- |
+| 1 | 세 모드 실행·검색 동작 | 세 모드 다 켜지고 영상·카드는 나왔다. "세탁기"·"건전지" 검색 결과는 기록이 없다 | 일부 확인 |
+| 2 | 표 빈칸 없음 | fps·ms 4칸, relabel 점수 6칸이 비었다 | **미충족** |
+| 3 | COCO 물체 relabel에서도 정답 | 컵·노트북·휴대폰 맞음 | 충족 |
+| 4 | COCO 밖 물체 1개 이상 개선 | 건전지·세탁기: yolo 미검출 → relabel 정답 | 충족 (세탁기는 화면에 띄운 사진이라 참고만, 건전지만으로도 충족) |
+| 5 | relabel fps ≥ 10 | 숫자를 못 받았다 | **판정 못 함** |
+| 6 | 메모리 정지 없음, 센서 ok | 종료 코드 4 없음, 센서 ok. 다만 **끌 때마다(세 번 모두) 멈춰서 강제 종료**했다(메모리 문제 아님, 이후 카메라·자물쇠 정상) | 충족 |
+| | **판정** | | **미통과** (기준 2 미충족, 5 판정 못 함) |
+
+**왜 이렇게 나왔는지:**
+
+- **숫자를 못 받은 건 측정 방법 문제다.** fps·ms는 브라우저 화면 위쪽에만 나왔고 터미널에는 안 찍혔다. 화면을 보던 사람이 모드마다 숫자를 적어야 했는데, 물체를 보여 주느라 yoloe 때만 적었다. relabel 점수도 웹 카드에만 있었다.
+- **yolo에서 미검출이던 건전지·세탁기가 relabel에서 맞은 이유.** 두 모드는 검출기(yolo11n)가 같지만 relabel은 conf를 0.5 → 0.35로 낮춘다(원문 설정). 그래서 애매한 박스가 생겼고, 그 크롭에 EmbeddingGemma 2가 맞는 이름을 붙였다. 원문 8-2가 말한 "박스를 더 확보 + 이름 바로잡기"가 그대로 일어났다.
+- **전지 포장은 세 모드 모두 미검출.** 박스가 아예 없어서 재라벨할 크롭도 없었다. yoloe도 못 잡은 건 포장이 작거나 "battery pack"이라는 말과 겉모습이 달랐을 수 있다(추정).
+- **yoloe의 세탁기가 휴대폰·키보드가 된 이유.** 세탁기 사진을 휴대폰·모니터 화면에 띄웠다. yoloe는 `LABELS`에 있는 "cell phone"·"keyboard"·"monitor"도 같이 찾으므로, 사진 속 세탁기보다 그걸 담은 기기를 먼저 잡았다. 3번 준비물에 "화면에 띄우면 그 자체가 노트북·휴대폰으로 잡혀 헷갈린다"고 적어 둔 경우다.
+- **끌 때 멈춘 이유.** 보드 담당이 본 바로는 Ctrl+C 뒤 python이 **D 상태**(커널 안에서 카메라를 놓는 중, 신호를 안 받음)로 멈췄고 세 번 모두 `kill -9`가 필요했다. 카메라 스레드가 멈추라는 신호 없이 `cap.read()`를 도는 중에 프로그램이 내려가면서 웹캠 드라이버(uvcvideo)가 스트림을 끊는 단계에서 걸린 것으로 보인다(추정). 원문 코드에도 카메라를 놓는 순서가 따로 없다. 끝없는 `/stream` 연결 때문에 웹 서버가 늦게 끝나는 것도 겹쳤을 수 있다.
+- 참고(크롭 원래 라벨 개수, 지우기 전 보드 담당이 셈): yolo `tv` 16·keyboard 10·laptop 9·mouse 7·cell phone 5·cup 3·chair 2·bottle 1·book 1 / relabel `tv` 9·keyboard 6·cell phone 3·cup 3·laptop 3·mouse 3·remote 1·book 1·bottle 1 / yoloe cell phone 21·keyboard 16·mouse 11·laptop 5·book 2·chair 1·cup 1·monitor 1 (화면 총 58개). yolo·relabel의 `tv`가 많은 건 세탁기 사진을 띄운 모니터·화면이 TV로 잡힌 것으로 보인다.
+- 메모리: 도는 중 available 최저는 yolo 1.6GB, relabel 2.1GB, yoloe 2.0GB로 6단계 비전 모양(2.2GB)과 비슷하거나 조금 낮았다. 1GB 정지선에는 안 갔다. yolo 모드가 가장 낮았던 건 그때 다른 계정 프로그램이 같이 돌았을 수 있다(확인 안 함).
+
+## 7. 2차 재측정 (실행 전에 적음, 2026-10-23)
+
+### 7-1. 1차와 똑같이 두는 것
+
+성공 기준(1번), `LABELS`, `LABEL_MIN` 0.20, 모드별 conf(0.5/0.35/0.25), 해상도 1280x720, 배치 2, 물체 6개와 보여 주는 순서, 검출·재라벨·검색 코드. 1차 기록(6번)은 지우지 않는다.
+
+### 7-2. 바꾸는 것 (1차 원인 분석에 따라)
+
+| 바꾸는 것 | 이유 |
+| --- | --- |
+| `app.py`가 10초마다 `[stats] fps=… embed_ms=…` 줄, 새 크롭마다 `[item] 검출기=… → 라벨=… (점수)` 줄, 끝날 때 `[summary] fps 평균 … 임베딩 평균 …` 줄을 **터미널에** 찍는다 | 1차에 화면 숫자를 못 받았다. 터미널 기록이면 보드 담당이 그대로 보낼 수 있다. 사진은 안 남기고 글자만 찍는다 |
+| Ctrl+C 때 카메라 루프를 먼저 멈추고 그 스레드 안에서 `cap.release()`, 영상 스트림도 멈추고, 웹 서버는 2초만 기다린 뒤 끝낸다 | 1차에 끌 때마다 D 상태로 멈췄다. 드라이버 문제라면 이걸로도 안 고쳐질 수 있어서, 2차에서 고쳐졌는지 그대로 적는다(기준 6에는 넣지 않는다) |
+| 드럼 세탁기는 **종이에 뽑은 사진**으로 보여 준다(없으면 태블릿, 휴대폰·노트북 화면은 안 씀) | 3번 준비물대로. 화면 기기가 같이 잡히지 않게 |
+| 모드마다 검색창에 "세탁기", "건전지"를 넣고 1위 카드의 이름·점수를 적는다 | 기준 1의 검색 확인 기록이 없었다 |
+
+### 7-3. 순서
+
+4-1(시작 전 확인) → `git pull` → 4-3·4-4·4-5를 같은 방법으로 한다. 실행 명령은 같다. 모드마다 터미널 출력 전체(특히 `[item]`, `[stats]`, `[summary]` 줄)와 검색 두 개의 1위 카드를 보낸다.
+
+```bash
+cd ~/eg2-재웅 && git pull && git log -1 --oneline
+source ~/eg2/bin/activate
+for m in yolo relabel yoloe; do
+  echo "=== $m: 물체 6개를 순서대로 보여 주고, 검색 '세탁기'·'건전지'를 한 뒤 Ctrl+C"
+  tegrastats --interval 1000 --logfile ~/eg2-재웅/media/tegra-8b-$m.log &
+  ~/practice.sh 재웅 python app.py --mode $m 2>&1 | tee ~/eg2-재웅/media/app-8b-$m.txt
+  kill %1
+  grep -o 'RAM [0-9]*/[0-9]*MB' ~/eg2-재웅/media/tegra-8b-$m.log | sort -t' ' -k2 -n | tail -1
+done
+grep -h '^\[summary\]' ~/eg2-재웅/media/app-8b-*.txt
+curl -s localhost:8080/health; echo; free -h; ls ~/eg2-재웅/crops 2>/dev/null
+```
+
+- Ctrl+C 뒤 2~3초 안에 `[summary]`가 찍히고 다음 모드로 넘어가야 한다. 10초 넘게 멈추면 다른 창에서 `ps -o pid,stat,wchan:30,cmd -u $USER | grep app.py`(멈춘 곳 확인)를 보내고, 그다음 1차처럼 `kill -9`. `[summary]`는 멈추기 전에 찍히므로 숫자는 남는다.
+- `media/app-8b-*.txt`는 글자 기록뿐이고 `media/`라 커밋되지 않는다. 보고서를 다 쓰면 지운다.
+- 2차도 미통과면 원인과 바꿀 것을 여기에 먼저 적고 3차로 간다. 예: relabel fps가 10 미만이면 원문 확인 포인트대로 `SIZE=640x480`.
