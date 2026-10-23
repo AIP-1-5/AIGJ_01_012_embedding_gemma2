@@ -7,6 +7,7 @@
 #   - 임베딩 배치 기본 2 (원문 8), ultralytics 자동 pip 설치 끔 (torch가 바뀌지 않게)
 #   - 끝나면 crops/<mode>를 지운다(--keep-crops로 남김). 사람이 찍힌 사진은 남기지 않는 팀 원칙
 #   - 10초마다 [stats] 줄, 새 크롭마다 [item] 줄(라벨·점수)을 터미널에 찍는다 (8단계 2차: 화면 숫자를 못 받은 문제)
+#   - relabel: 검출기 이름이 LABELS에 있고 1위와 KEEP_MARGIN(0.03) 안이면 검출기 이름 유지 (8단계 3차: 휴대폰→키보드 오교정)
 #   - Ctrl+C 때 영상 스트림·카메라를 먼저 멈추고 2초 안에 끝낸다 (8단계 1차: 끌 때마다 멈춤)
 import os
 os.environ["YOLO_AUTOINSTALL"] = "False"          # ultralytics가 몰래 pip install 하지 않게 (torch 고정 지키기)
@@ -55,6 +56,8 @@ LABELS = [
     ("cup", "컵"), ("water bottle", "물병"), ("book", "책"), ("backpack", "가방"), ("chair", "의자"),
 ]
 LABEL_MIN     = 0.20                  # 이 점수 미만이면 YOLO 라벨 유지 (웹의 점수를 보고 조정)
+KEEP_MARGIN   = float(os.environ.get("KEEP_MARGIN", "0.03"))   # 8단계 3차: 검출기 이름이 1위와 이만큼 안이면 유지 (0이면 원문)
+LABEL_IDX     = {en: i for i, (en, _) in enumerate(LABELS)}
 
 
 def mem_available_mb():
@@ -171,14 +174,18 @@ def embed_loop():
         with idx_lock:
             for (tid, name, cf, ts, _), p, v, sim in zip(batch, paths, vecs, sims):
                 j = int(sim.argmax())
+                k = LABEL_IDX.get(name)                     # 검출기 이름이 LABELS에 있으면 그 문장 번호
+                ds = float(sim[k]) if k is not None else float("nan")
                 if MODE != "relabel":            # yolo / yoloe: 검출기 라벨 그대로
                     en, ko, ls = name, KO.get(name, name), float(sim[j])
+                elif k is not None and sim[j] - sim[k] <= KEEP_MARGIN:   # 임베딩이 확실히 다르다고 할 때만 고친다
+                    en, ko, ls = name, KO[name], ds
                 elif sim[j] >= LABEL_MIN:
                     en, ko, ls = LABELS[j][0], LABELS[j][1], float(sim[j])
                 else:
                     en, ko, ls = name, name, float(sim[j])
                 track_label[tid] = (en, ko, ls)
-                print(f"[item] id={tid} 검출기={name} {cf:.2f} → 라벨={ko} ({ls:.3f})", flush=True)
+                print(f"[item] id={tid} 검출기={name} {cf:.2f} → 라벨={ko} ({ls:.3f}) 검출기점수={ds:.3f}", flush=True)
                 items.append({"id": tid, "cls": name, "label": ko, "lscore": round(ls, 3),
                               "conf": round(cf, 2), "ts": ts, "img": "/" + p, "vec": v})
             while len(items) > MAX_ITEMS:
