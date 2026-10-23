@@ -1,6 +1,6 @@
 # 2단계 패키지·모델 설치 (sentence-transformers · EmbeddingGemma 2 · 공통 로더)
 
-> 상태: **아직 안 함** (보드 A에서 할 예정)
+> 상태: **보드 A 진행 중** (2026-10-23, 4-3까지: torch `2.14.1+cu132` 유지, sentence-transformers `6.2.0`, transformers `5.20.1`, 모델 gated 아님)
 > 원문: 실습 README의 "2단계 패키지·모델 설치"
 > 앞 단계: [01-environment.md](01-environment.md) — 보드 A 통과 (torch `2.14.1+cu132`, `~/eg2`, `~/eg2/torch-pin.txt`, `HF_HOME=~/.cache/huggingface`)
 > 결정(2026-10-23): 재웅은 10단계까지 **보드 A**만 쓴다. 모델은 **계정마다 따로** 받는다(공용 폴더 아님).
@@ -43,11 +43,13 @@
 | 토큰은 `hf auth login`(선택) | 토큰을 쓴다면 `~/eg2/.env`에만 넣는다 (3번) | 팀 규칙 8번: 비밀값은 `.env`에만 |
 | `HF_HUB_OFFLINE=1`을 `~/.bashrc`에 | 3단계에서 정한다 (이번엔 안 함) | 모델을 다 받고 3단계가 잘 돌면 그때 켠다 |
 
-## 3. 사용자 준비물: Hugging Face 동의와 토큰
+## 3. (선택) Hugging Face 동의와 토큰
 
-### 3-1. 왜 필요한가
+> **보드 A 확인 결과(2026-10-23): `"gated":false`.** 동의·토큰 없이 받을 수 있어서 이 3번은 **하지 않아도 된다.** 다운로드가 속도 제한으로 자꾸 끊길 때만 한다.
 
-모델 파일은 Hugging Face라는 모델 저장소에서 받는다. 원문은 이 모델이 Apache 2.0(누구나 쓸 수 있는 라이선스)이라 **토큰 없이도 받을 수 있다**고 하지만, 모델에 따라 "사용 동의(Agree)"를 눌러야만 받을 수 있는 경우(gated 모델)가 있다. 그래서 4-2에서 먼저 확인하고, 필요하면 아래를 한다. 토큰이 없어도 되더라도 넣어 두면 다운로드 속도 제한을 덜 받는다(원문 Q8).
+### 3-1. 언제 필요한가
+
+모델 파일은 Hugging Face라는 모델 저장소에서 받는다. 원문은 이 모델이 Apache 2.0(누구나 쓸 수 있는 라이선스)이라 **토큰 없이도 받을 수 있다**고 하지만, 모델에 따라 "사용 동의(Agree)"를 눌러야만 받을 수 있는 경우(gated 모델)가 있다. 그래서 4-2에서 먼저 확인하고, gated일 때만 아래가 꼭 필요하다. 토큰이 없어도 되더라도 넣어 두면 다운로드 속도 제한을 덜 받는다(원문 Q8).
 
 ### 3-2. 노트북 브라우저에서 (보드 아님)
 
@@ -115,7 +117,7 @@ curl -s -m 10 https://huggingface.co/api/models/google/embeddinggemma-2 | grep -
 
 | 나온 것 | 뜻 |
 | --- | --- |
-| `"gated":false` | 동의·토큰 없이 받을 수 있다. 토큰은 선택(속도 제한 덜 받음) |
+| `"gated":false` | 동의·토큰 없이 받을 수 있다. 3번은 건너뛴다 (보드 A 2026-10-23 결과가 이것) |
 | `"gated":"auto"` 또는 `"gated":"manual"` | 3-2에서 **동의 버튼을 누르고 토큰을 넣어야** 받을 수 있다 |
 | 아무것도 안 나옴 | 네트워크 문제일 수 있다. 화면을 그대로 보낸다 |
 
@@ -133,10 +135,12 @@ source ~/eg2/bin/activate
 pip install -c ~/eg2/torch-pin.txt -U \
   "sentence-transformers[image,audio,video]>=6.1.0" transformers accelerate \
   soundfile librosa av pillow huggingface_hub
-pip freeze | grep -E '^(torch|torchvision|torchaudio)=='   # 설치 뒤에도 2.14.1+cu132 그대로인지
+pip uninstall -y torchaudio 2>/dev/null || true             # 딸려 깔린 torchaudio 지우기 (아래 설명)
+pip freeze | grep -E '^(torch|torchvision|torchaudio)=='   # torch·torchvision 두 줄만, 2.14.1+cu132·0.29.1+cu132 그대로인지
 ```
 
-- 마지막 줄에 `torchaudio`가 보이면 원문 Q7 문제가 생긴다. `pip uninstall -y torchaudio` 한다.
+- **torchaudio가 다른 패키지에 딸려서 같이 깔린다**(보드 A 2026-10-23: `torchaudio 2.11.0`). `torch-pin.txt`에는 torch·torchvision만 적혀 있어서 torchaudio는 막지 못한다. 이 torchaudio는 PyPI 것이라 CUDA 버전이 달라 `check.py`에서 원문 Q7 오류(`AutoProcessor`)를 낸다. 그래서 설치 바로 다음 줄에서 지운다. 소리 파일은 soundfile·librosa로 읽으니 없어도 된다.
+- 마지막 줄에 `torchaudio`가 아직 보이면 `pip uninstall -y torchaudio`를 한 번 더 한다.
 - "Cannot install ... conflicting dependencies"가 나오면 고정한 torch와 맞지 않는 패키지가 있다는 뜻이다. **고정을 빼고 다시 하지 말고** 화면을 그대로 보낸다.
 
 ### 4-4. 코드 받기와 설치 확인
