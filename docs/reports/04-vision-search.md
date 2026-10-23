@@ -38,7 +38,8 @@
 
 | 원문 | 우리 보드에서 | 이유 |
 | --- | --- | --- |
-| RTSP IP 카메라에서 녹화 | **USB 웹캠**(`/dev/video0`)에서 `ffmpeg -f v4l2`로 찍는다 | 우리 보드에는 USB 웹캠이 꽂혀 있다 |
+| RTSP IP 카메라에서 `ffmpeg`로 녹화 | **USB 웹캠**(`/dev/video0`)에서 `cam.py`(OpenCV)로 찍는다 | 우리 보드에는 USB 웹캠이 꽂혀 있다. 보드의 ffmpeg(NVIDIA Jetson 판 `n8.0.1`)는 웹캠(v4l2) 입력이 빠져 있어서 `-f v4l2`가 `Unknown input format`으로 실패했다(2026-10-23 확인) |
+| (설치 없음) | `~/eg2`에 `opencv-python-headless==4.11.0.86` 설치 | 웹캠을 sudo 없이 읽으려고. 8단계에서도 쓴다. 4.12부터는 numpy 2를 요구해서 numpy 1.26.4와 맞는 4.11로 고정, 화면이 없어 headless 판 |
 | 영상에서 뽑은 `frame_*.jpg`를 사진으로 검색 | 장면이 다른 사진을 **따로** 찍고 이름을 붙인다. 프레임은 `media/frames/`에 두고 동영상 실패 때만 쓴다 | 10초 영상의 프레임은 장면이 거의 같아서 "서로 다른 장면" 검색이 안 된다. 이름이 있어야 1위를 자동 판정한다 |
 | 사진을 열어 보기 | 보드에서 `python3 -m http.server 8001`을 잠깐 켜고 **노트북 브라우저**로 본다 | 보드 모니터가 안 나온다. 8001은 우리 실습 앱 포트 |
 | `~/eg2-lab`에서 `nano test_vision.py` | 저장소의 `test_vision.py`를 `git pull`로 받는다. `media/`는 `~/eg2-재웅/media` | 팀 규칙 6번. `media/`, `*.jpg`, `*.mp4`는 `.gitignore`에 있어 커밋되지 않는다 |
@@ -48,7 +49,7 @@
 | 확장 과제(텍스트+이미지 혼합)는 따로 | 같은 실행에서 `board.jpg`로 한 번 해 본다(참고) | 모델을 두 번 올리지 않으려고 |
 | (메모리 설정 없음) | 오디오 인코더 안 올림, GPU 몫 `0.3`, `batch_size=2`, `inference_mode`, 끝나면 해제 | 팀 문서 11번, 메모리 아끼기 원칙 |
 
-이번 단계도 **pip 설치가 없다.** 동영상 디코딩용 `av`는 2단계에서 이미 깔았다.
+pip 설치는 OpenCV 하나다(3-2). 동영상 디코딩용 `av`는 2단계에서 이미 깔았다.
 
 ## 3. 순서 (보드 A, 자기 계정으로 SSH)
 
@@ -76,38 +77,43 @@ echo "== 웹캠"; ls /dev/video*; groups | grep -qw video && echo "video 그룹 
 
 ```bash
 cd ~/eg2-재웅 && git pull && git log -1 --oneline   # 보고서에 적을 커밋
-ls test_vision.py && mkdir -p media/frames
+ls test_vision.py cam.py && mkdir -p media/frames
 ```
+
+OpenCV 설치 (한 번만). torch 고정과 numpy 고정을 같이 걸어서 다른 것이 바뀌지 않게 한다.
+
+```bash
+source ~/eg2/bin/activate
+pip install -c ~/eg2/torch-pin.txt "numpy==1.26.4" "opencv-python-headless==4.11.0.86"
+pip freeze | grep -E '^(torch|torchvision|torchaudio|numpy|opencv-python-headless)=='   # torch·torchvision cu132, numpy 1.26.4, opencv 4.11.0.86, torchaudio 없음
+python -c "import cv2; print(cv2.__version__)"
+```
+
+- torchaudio 줄이 보이면 `pip uninstall -y torchaudio`.
 
 ### 3-3. 사진 찍기 (웹캠, 장면마다 한 장)
 
-**무엇을, 왜:** 검색할 사진을 만든다. 웹캠을 손으로 들고 장면을 향하게 한 뒤 한 줄씩 실행한다. 웹캠은 켜자마자 몇 장은 어둡게 나와서, 15번째 장면을 저장한다(1초쯤 걸림). 카메라를 잡는 일이라 `~/practice.sh`를 거친다.
+**무엇을, 왜:** 검색할 사진을 만든다. 웹캠을 손으로 들고 장면을 향하게 한 뒤 한 줄씩 실행한다. `cam.py`는 켜자마자 나오는 어두운 장면 15장을 버리고 다음 장면을 저장한다. 카메라를 잡는 일이라 `~/practice.sh`를 거친다.
 
 ```bash
-cd ~/eg2-재웅
-snap() { ~/practice.sh 재웅 ffmpeg -hide_banner -loglevel error -y -f v4l2 -video_size 640x480 -i /dev/video0 -vf "select=gte(n\,15)" -frames:v 1 "media/$1.jpg" && ls -lh "media/$1.jpg"; }
-snap empty     # 사람 없는 책상·의자 쪽을 향하고
-snap class     # 사람이 앉아 있는 쪽을 향하고 (찍히는 사람에게 먼저 말하기)
-snap board     # 글씨가 쓰인 화이트보드를 향하고
-snap monitor   # (다른 장면) 모니터나 창문, 문 등
+cd ~/eg2-재웅 && source ~/eg2/bin/activate
+~/practice.sh 재웅 python cam.py snap empty     # 사람 없는 책상·의자 쪽
+~/practice.sh 재웅 python cam.py snap class     # 사람이 앉아 있는 쪽 (찍히는 사람에게 먼저 말하기)
+~/practice.sh 재웅 python cam.py snap board     # 글씨가 쓰인 화이트보드
+~/practice.sh 재웅 python cam.py snap monitor   # (다른 장면) 모니터나 창문, 문 등
 ```
 
-`snap` 한 줄을 붙여 넣으면 그 창에서 계속 `snap 이름`으로 쓸 수 있다.
-
-- `Device or resource busy` → 다른 프로그램이 카메라를 쓰는 중. `cat /tmp/practice.who.*`
-- `Invalid argument`나 크기 관련 오류 → 화면을 보낸다(웹캠이 640x480을 지원하지 않는 경우).
+- `/dev/video0을 열 수 없다` → 다른 프로그램이 카메라를 쓰는 중인지 `cat /tmp/practice.who.*`. 그래도 안 되면 `CAM=1 python cam.py ...`
 - 노트북·휴대폰 사진을 써도 된다. 그때는 노트북에서 `scp empty.jpg class.jpg board.jpg jaeung@100.113.228.46:~/eg2-재웅/media/` (이름 약속은 같다)
 
-### 3-4. 동영상 10초 찍기와 프레임 뽑기
+### 3-4. 동영상 10초 찍기 (프레임도 같이)
 
-**무엇을, 왜:** 동영상 검색용 10초 영상을 만든다. 수업 중인 쪽(사람이 앉아 있는 곳)을 10초 동안 비춘다. 영상에서 2초마다 한 장씩 뽑은 프레임은 동영상 디코딩이 안 될 때 대신 쓴다.
+**무엇을, 왜:** 동영상 검색용 10초 영상을 만든다. 수업 중인 쪽(사람이 앉아 있는 곳)을 10초 동안 비춘다. 찍는 동안 2초마다 한 장씩 `media/frames/`에도 저장하는데, 동영상 디코딩이 안 될 때 대신 쓴다.
 
 ```bash
-cd ~/eg2-재웅
-~/practice.sh 재웅 ffmpeg -hide_banner -loglevel error -y -f v4l2 -video_size 640x480 -i /dev/video0 -t 10 -an -c:v libx264 -pix_fmt yuv420p media/clip.mp4
-ffmpeg -hide_banner -loglevel error -y -i media/clip.mp4 -vf fps=0.5 media/frames/frame_%02d.jpg
+cd ~/eg2-재웅 && source ~/eg2/bin/activate
+~/practice.sh 재웅 python cam.py clip 10
 ls -lh media/*.jpg media/*.mp4 media/frames/
-ffprobe -v error -show_entries format=duration -of csv=p=0 media/clip.mp4   # 10 근처면 OK
 ```
 
 영상에 무엇을 찍었는지(예: "앉아 있는 팀원 2명") 한 줄 적어 둔다. 질의-동영상 유사도를 해석할 때 쓴다.
