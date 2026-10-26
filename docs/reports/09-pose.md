@@ -73,6 +73,7 @@
 | `assert`로 웹캠 확인 | 웹캠을 못 열면 이유를 말하고 끝남(종료 코드 2) | 8단계 `app.py`와 같게 |
 | `--record`는 끝까지 파일을 열어 둠 | 끝날 때 파일을 닫고 "이번에 N줄 기록"을 찍는다. 화면에도 기록 줄 수 표시 | 녹화가 실제로 됐는지 바로 알 수 있게 |
 | 학습 결과가 매번 조금씩 다름 | `train_pose.py`에 시드 고정(`--seed 0`) | 같은 데이터로 다시 돌리면 같은 숫자가 나오게(보고서 재현) |
+| 녹화 파일 전체를 학습에 씀 | `train_pose.py --trim 5`: 파일마다 맨 앞·맨 뒤 5초를 버린다(기본 0 = 원문) | 녹화 신호를 키보드로 치는 동안의 모습이 라벨에 섞이지 않게(6번 "9-6 학습 준비") |
 
 판정 규칙, 다수결·손 흔들기·악수·행동 패턴 로직, 기준값(`SMOOTH_S`, `WAVE_S`, `FACE_TH` …), GRU 구조와 학습 설정, 웹 화면은 원문 그대로다.
 
@@ -207,12 +208,13 @@ tegrastats --interval 1000 --logfile ~/eg2-재웅/media/tegra-9-behavior.log &
 cd ~/work/AIGJ_01_012_embedding_gemma2 && git pull && source ~/eg2-mac/bin/activate
 mkdir -p data && scp -r jaeung@100.113.228.46:eg2-재웅/data/action jaeung@100.113.228.46:eg2-재웅/data/behavior data/
 wc -l data/action/*.csv data/behavior/*.csv
-python train_pose.py --data data/action --task action --window 30 --out models/action.pt
-python train_pose.py --data data/behavior --task behavior --window 80 --stride 10 --out models/behavior.pt
+python train_pose.py --data data/action --task action --window 30 --trim 5 --out models/action.pt
+python train_pose.py --data data/behavior --task behavior --window 80 --stride 10 --trim 5 --out models/behavior.pt
 ssh jaeung@100.113.228.46 'mkdir -p ~/eg2-재웅/models' && scp models/action.pt models/behavior.pt jaeung@100.113.228.46:eg2-재웅/models/
 ```
 
 - 학습 화면의 "라벨별 학습/검증 윈도 수", "최고 검증 정확도", "혼동 행렬"을 그대로 보낸다(5번에 적는다).
+- `--trim 5`는 녹화 신호를 치는 동안의 모습을 버리는 것이다(6번 "앞뒤 자르기 규칙", 10/26 추가).
 - `윈도가 부족함`이 나오면 행동 쪽은 원문대로 `--window`를 줄인다(예: `--window 40 --stride 5`). 바꾼 값과 이유를 적는다.
 
 ### 4-8. 9-6 보드에서 비교 (`--model`)
@@ -363,7 +365,7 @@ main 3f0bfb0, 09:51 KST, 옵션 없음(`wave_amp=0.15` 확인), 1280x720, 1명(�
 **왜 이렇게 나왔나: 확인하지 못했다 (2026-10-26 최종 정정).** 장면별 기록(프레임마다 정면 점수·속도)을 남기지 않아서 원인을 가려낼 수 없다. 재웅 님은 고개를 충분히 돌렸다고 했다. 가능성은 아래 세 가지다(순서는 그럴듯한 순).
 
 1. **추적이 합쳐졌다.** 4-1과 4-2가 한 사람(#18, 체류 36초)으로, 3-2와 3-3이 한 사람(#17)으로 이어졌다. 이렇게 되면 시도 사이에 화면 안에 서서 기다린 시간, 들어오고 나가면서 카메라 쪽을 향한 시간이 한 사람의 정면 시간에 합쳐진다. 그러면 "옆을 보며 서 있음"도 관심 있음으로 올라갈 수 있다. 반대로 1-1, 1-3, 3-1은 ID가 쪼개졌다. 정해 둔 규칙은 "가장 높은 단계"를 택하므로, 짧은 조각 하나만 정면으로 읽혀도 지나감이 힐끗 봄이 된다.
-2. **신호를 보던 화면이 카메라 근처에 있었다.** 보드가 5초마다 채팅으로 신호를 보냈고, 재웅 님은 카메라 근처의 노트북·휴대폰으로 그것을 봤다. 신호를 확인하는 순간 얼굴이 카메라 쪽을 향했을 수 있다.
+2. **신호를 보던 화면이 카메라 근처에 있었다.** 보드가 5초마다 채팅으로 신호를 보냈고, 재웅 님은 카메라 근처의 노트북·휴대폰으로 그것을 봤다. 신호를 확인하는 순간 얼굴이 카메라 쪽을 향했을 수 있다. 또 재웅 님이 "시작"/"끝"을 **키보드로 쳤기 때문에**(10/26 재웅 님 관찰), 시도마다 처음과 끝에 키보드 앞에 서서 카메라 쪽을 향한 시간이 있었을 수 있다. 이 시간이 1번처럼 이어진 추적에 들어가면 정면 시간이 늘어난다.
 3. **카메라 각도.** 카메라가 아래에서 올려다봤다. 다만 정면 점수(`facing_score`)는 코·두 눈의 신뢰도와, 코가 두 귀(없으면 두 눈) 사이 가로 중점에서 벗어난 정도로만 계산한다. 그래서 위아래 각도의 영향은 작을 것으로 본다.
 
 그 밖에 `/events`가 최근 20개만 보여 줘서 #16 같은 요약을 놓쳤을 수 있다. 이것은 측정 방법의 문제다.
@@ -430,6 +432,13 @@ main 3f0bfb0, 09:51 KST, 옵션 없음(`wave_amp=0.15` 확인), 1280x720, 1명(�
 - 행동: 원문 `--window 80 --stride 10`으로 먼저 돌린다. `윈도가 부족함`으로 멈추거나 학습·검증 윈도가 0인 라벨이 하나라도 있으면 `--window 40 --stride 5`로 한 번만 다시 한다. 원문 9-6 3번 "한 번 지나가는 데 4초가 안 걸리면 window를 줄인다"를 따른 것이다. 40프레임은 13 fps에서 약 3초다.
 - 어느 값으로 학습했든 그 값과 이유를 9-6 표에 적는다. 검증 정확도를 보고 window를 다시 고르지 않는다.
 
+**앞뒤 자르기 규칙 (2026-10-26, 학습 전에 적음):**
+- **왜:** 재웅 님 관찰. 9-3 녹화는 재웅 님이 "시작"/"끝"을 키보드로 쳐서 신호를 줬다. 그래서 파일마다 처음과 끝에는 키보드 앞에 서 있거나, 자리로 걸어가거나, 카메라 쪽을 보는 모습이 찍혔을 수 있다. 이 부분은 그 파일의 라벨(예: `clap`, `arms_crossed`, `passing`)과 다른 모습인데, 파일 이름이 정답이라 그대로 그 라벨로 배운다.
+- **규칙:** 7개 파일 모두 `--trim 5`. 파일 안 첫 기록 시각부터 5초, 마지막 기록 시각까지 5초를 버린다. 5초는 신호를 치고 자리로 돌아가는 데 걸리는 시간을 넉넉히 잡은 값이다(약 65행, 13 fps).
+- **남는 양(어림):** 동작 4개는 약 57~80초 → 47~70초라 기준 6(30초 이상)을 그대로 넘는다. 행동 3개는 파일 앞뒤에서 한 번씩 정도 빠질 수 있다. 학습 화면에 파일마다 "앞뒤 5초 버림 N → M행, 남은 길이"가 찍히므로 그대로 적는다.
+- **바꾸지 않는 것:** 5초는 학습 결과를 보기 전에 정한 값이다. 검증 정확도를 보고 다시 고르지 않고, 자르지 않은 학습과 비교해 좋은 쪽을 고르지도 않는다. 위 window 규칙(40/5로 한 번 다시)은 자른 데이터 기준으로 판단한다.
+- 9-6 보드 비교 때는 같은 문제가 없도록 신호를 카메라에 안 찍히는 곳에서(또는 말로) 준다.
+
 **CSV 옮기기와 보드에서 지우기** (맥 터미널에서 한다):
 
 ```bash
@@ -442,7 +451,16 @@ ssh jaeung@100.113.228.46 'cd ~/eg2-재웅/data && sha1sum action/*.csv behavior
 diff <(awk '{print $1, $2}' /tmp/eg2-9-mac.sha) <(awk '{print $1, $2}' /tmp/eg2-9-board.sha) && echo "같음"
 ```
 
-- "같음"이 나오면 학습한다(4-7의 두 `train_pose.py` 명령과 위 window 규칙). 학습 화면 전문(라벨별 윈도 수, 검증 정확도, 혼동 행렬)을 보낸다.
+- "같음"이 나오면 학습한다. 명령은 아래와 같다(위 window 규칙과 앞뒤 자르기 규칙):
+
+```bash
+python train_pose.py --data data/action --task action --window 30 --trim 5 --out models/action.pt
+python train_pose.py --data data/behavior --task behavior --window 80 --stride 10 --trim 5 --out models/behavior.pt
+# 행동이 '윈도가 부족함'으로 멈추거나 학습·검증 윈도가 0인 라벨이 있을 때만, 한 번:
+python train_pose.py --data data/behavior --task behavior --window 40 --stride 5 --trim 5 --out models/behavior.pt
+```
+
+- 학습 화면 전문을 보낸다. 학습 화면 전문(라벨별 윈도 수, 검증 정확도, 혼동 행렬)을 보낸다.
 - 모델을 보드로 보낸다: `ssh jaeung@100.113.228.46 'mkdir -p ~/eg2-재웅/models' && scp models/action.pt models/behavior.pt jaeung@100.113.228.46:eg2-재웅/models/`
 - **"같음"을 확인한 뒤에만** 보드의 CSV를 지운다: `ssh jaeung@100.113.228.46 'rm -r ~/eg2-재웅/data/action ~/eg2-재웅/data/behavior && ls ~/eg2-재웅/data'`
 - 맥의 CSV(`data/`는 커밋 안 됨)는 9단계 보고서를 다 쓴 뒤 지운다.

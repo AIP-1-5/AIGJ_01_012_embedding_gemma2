@@ -7,6 +7,8 @@
   - 맥에서만 돈다. 보드(Jetson)에서 켜면 바로 멈춘다 (팀 규칙: 보드에서 학습하지 않는다)
   - 시드를 고정해 같은 데이터면 같은 결과가 나오게 했다 (--seed)
   - 장치: cuda가 있으면 cuda, 없으면 cpu (맥은 cpu. 모델이 작아 수 분이면 끝난다)
+  - --trim 초: 파일마다 맨 앞·맨 뒤 그만큼을 버린다. 녹화 신호("시작"/"끝")를 키보드로 치는 동안
+    카메라에 찍힌 모습이 라벨에 섞이지 않게 한다 (기본 0 = 원문과 같음)
 """
 import argparse, csv, glob, os, collections
 import numpy as np, torch, torch.nn as nn
@@ -22,6 +24,7 @@ ap.add_argument("--hidden", type=int, default=64)
 ap.add_argument("--val", type=float, default=0.2, help="각 시퀀스 뒷부분을 검증용으로 사용")
 ap.add_argument("--out", required=True)
 ap.add_argument("--seed", type=int, default=0)
+ap.add_argument("--trim", type=float, default=0.0, help="파일마다 앞뒤로 버릴 초")
 args = ap.parse_args()
 if os.path.exists("/etc/nv_tegra_release"):
     raise SystemExit("보드(Jetson)에서는 학습하지 않는다. 맥에서 돌리고 models/*.pt만 보드로 옮긴다 (팀 규칙 6번)")
@@ -40,6 +43,14 @@ def load_sequences(path):
             fa, spd = float(row[3]), float(row[4])
             feat = np.array([float(x) for x in row[5:]] + [fa, spd], dtype=np.float32)
             by_tid[tid].append((ts, feat))
+    if args.trim > 0 and by_tid:
+        t_all = [t for rows in by_tid.values() for t, _ in rows]
+        lo, hi = min(t_all) + args.trim, max(t_all) - args.trim
+        n0 = len(t_all)
+        by_tid = {k: [r for r in rows if lo <= r[0] <= hi] for k, rows in by_tid.items()}
+        by_tid = {k: rows for k, rows in by_tid.items() if rows}
+        n1 = sum(len(rows) for rows in by_tid.values())
+        print(f"{os.path.basename(path)}: 앞뒤 {args.trim:g}초 버림 {n0} → {n1}행, 남은 길이 {max(hi - lo, 0):.1f}초")
     seqs = []
     for rows in by_tid.values():
         rows.sort(key=lambda r: r[0])
