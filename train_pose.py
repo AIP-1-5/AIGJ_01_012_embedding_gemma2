@@ -9,6 +9,8 @@
   - 장치: cuda가 있으면 cuda, 없으면 cpu (맥은 cpu. 모델이 작아 수 분이면 끝난다)
   - --trim 초: 파일마다 맨 앞·맨 뒤 그만큼을 버린다. 녹화 신호("시작"/"끝")를 키보드로 치는 동안
     카메라에 찍힌 모습이 라벨에 섞이지 않게 한다 (기본 0 = 원문과 같음)
+  - --split piece: 조각마다 뒷부분을 떼지 않고, 시간상 마지막 --val 비율의 조각을 통째로 검증에 쓴다.
+    지나갈 때마다 추적이 끊겨 조각이 짧은 행동 데이터용 (기본 tail = 원문과 같음, 9-6 1차 기록)
 """
 import argparse, csv, glob, os, collections
 import numpy as np, torch, torch.nn as nn
@@ -25,6 +27,8 @@ ap.add_argument("--val", type=float, default=0.2, help="각 시퀀스 뒷부분�
 ap.add_argument("--out", required=True)
 ap.add_argument("--seed", type=int, default=0)
 ap.add_argument("--trim", type=float, default=0.0, help="파일마다 앞뒤로 버릴 초")
+ap.add_argument("--split", choices=["tail", "piece"], default="tail",
+                help="tail: 조각마다 뒷부분을 검증(원문), piece: 마지막 조각들을 통째로 검증")
 args = ap.parse_args()
 if os.path.exists("/etc/nv_tegra_release"):
     raise SystemExit("보드(Jetson)에서는 학습하지 않는다. 맥에서 돌리고 models/*.pt만 보드로 옮긴다 (팀 규칙 6번)")
@@ -54,13 +58,14 @@ def load_sequences(path):
     seqs = []
     for rows in by_tid.values():
         rows.sort(key=lambda r: r[0])
-        cur = [rows[0][1]]
+        start, cur = rows[0][0], [rows[0][1]]
         for (t0, _), (t1, f) in zip(rows, rows[1:]):
             if t1 - t0 > 0.5:
-                seqs.append(cur); cur = []
+                seqs.append((start, cur)); start, cur = t1, []
             cur.append(f)
-        seqs.append(cur)
-    return [np.stack(s) for s in seqs if len(s) >= args.window]
+        seqs.append((start, cur))
+    seqs.sort(key=lambda x: x[0])                 # 시작 시각 순 (--split piece가 마지막 조각을 고를 때 씀)
+    return [np.stack(s) for _, s in seqs if len(s) >= args.window]
 
 def windows(seq):
     return [seq[i:i + args.window] for i in range(0, len(seq) - args.window + 1, args.stride)]
@@ -70,10 +75,20 @@ labels = [os.path.splitext(os.path.basename(p))[0] for p in files]
 assert len(labels) >= 2, "라벨(CSV 파일)이 2개 이상 필요"
 Xtr, ytr, Xva, yva = [], [], [], []
 for ci, p in enumerate(files):
-    for seq in load_sequences(p):
-        cut = int(len(seq) * (1 - args.val))      # 시간순 분할: 앞 80% 학습, 뒤 20% 검증 (겹침 방지)
-        tr, va = windows(seq[:cut]), windows(seq[cut:])
-        Xtr += tr; ytr += [ci] * len(tr); Xva += va; yva += [ci] * len(va)
+    seqs = load_sequences(p)
+    if args.split == "piece":                     # 마지막 20% 조각(최소 1개)을 통째로 검증
+        n_va = max(1, round(len(seqs) * args.val)) if len(seqs) >= 2 else 0
+        parts = [(s, ci, True) for s in seqs[:len(seqs) - n_va]] + [(s, ci, False) for s in seqs[len(seqs) - n_va:]]
+        for seq, _, is_tr in parts:
+            w = windows(seq)
+            if is_tr: Xtr += w; ytr += [ci] * len(w)
+            else: Xva += w; yva += [ci] * len(w)
+        print(f"{labels[ci]:>15}: 조각 {len(seqs)}개 (학습 {len(seqs) - n_va}, 검증 {n_va})")
+    else:
+        for seq in seqs:
+            cut = int(len(seq) * (1 - args.val))  # 시간순 분할: 앞 80% 학습, 뒤 20% 검증 (겹침 방지)
+            tr, va = windows(seq[:cut]), windows(seq[cut:])
+            Xtr += tr; ytr += [ci] * len(tr); Xva += va; yva += [ci] * len(va)
     print(f"{labels[ci]:>15}: 학습 {ytr.count(ci)}, 검증 {yva.count(ci)} 윈도")
 assert Xtr and Xva, "윈도가 부족함: 녹화 시간을 늘리거나 --window를 줄일 것"
 
