@@ -157,9 +157,10 @@ def close_track(tid, st, now):
     if not args.behavior or st["best"] == "관찰 중":
         return
     dwell = st["seen"] - st["first"]
+    line = f"요약: 체류 {dwell:.0f}초, 정면 {st['look']:.0f}초 → {st['best']}"
+    print(f"{time.strftime('%H:%M:%S')} #{tid} {line}", flush=True)   # /events는 최근 20개뿐이라 화면에도 남긴다 (9-5 1차)
     with ev_lock:
-        events.appendleft({"ts": now, "who": f"#{tid}",
-                           "label": f"요약: 체류 {dwell:.0f}초, 정면 {st['look']:.0f}초 → {st['best']}"})
+        events.appendleft({"ts": now, "who": f"#{tid}", "label": line})
         beh_counts[st["best"]] += 1
 
 def handshake_pairs(kps, ids, now):
