@@ -20,4 +20,5 @@
 | `pose_model.py` | 9단계 공통: 관절 특징과 GRU 모델 |
 | `train_pose.py` | 9-6 GRU 학습 (맥에서만, 보드에서 켜면 멈춤) |
 | `wave_check.py` | 9-2 2차 진단: 녹화한 손 흔들기 CSV로 손목 폭·신뢰도와 폭 기준별 WAVE 판정 비율 |
+| `piece_check.py` | 9-6 3차: 행동 녹화 직후 끊김 없는 조각이 40줄 이상인 게 몇 개인지 센다 (학습 아님) |
 | `docs/reports/NN-*.md` | 단계별 안내와 결과 보고서 |
