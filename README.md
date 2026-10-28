@@ -1,10 +1,31 @@
-# EmbeddingGemma 2 실습 — 팀5 이재웅
+<p align="center">
+  <img src="docs/presentation/banner.svg" alt="8GB 보드 하나로 검색부터 접근 감지까지 — EmbeddingGemma 2 실습 10단계, 팀5 이재웅" width="100%">
+</p>
 
-**Jetson Orin Nano Super 8GB 보드 한 대에서 EmbeddingGemma 2로 텍스트 검색부터 카메라 2대 접근 감지까지** 한 10단계 실습의 코드와 보고서입니다.
+<h1 align="center">EmbeddingGemma 2 실습 — 팀5 이재웅</h1>
+
+<p align="center">
+  <b>Jetson Orin Nano Super 8GB</b> 보드 한 대에서 <b>텍스트 검색부터 카메라 2대 접근 감지까지</b> 한 10단계 실습의 코드와 보고서
+</p>
+
+<p align="center">
+  <a href="docs/presentation/eg2-practice-team5-jaeung.pdf"><b>📊 발표 자료 PDF</b></a>
+  &nbsp;·&nbsp;
+  <a href="docs/presentation/eg2-practice-team5-jaeung.pptx"><b>PowerPoint</b></a>
+  &nbsp;·&nbsp;
+  <a href="docs/presentation/eg2-practice-team5-jaeung-대본.md"><b>발표 대본</b></a>
+  &nbsp;·&nbsp;
+  <a href="docs/reports/"><b>단계별 보고서</b></a>
+</p>
+
+<p align="center">
+  <img alt="통과 6" src="https://img.shields.io/badge/통과-6단계-FAF9F5?labelColor=141413">
+  <img alt="미통과 4" src="https://img.shields.io/badge/미통과-4단계_(원인_기록)-B0AEA5?labelColor=141413">
+  <img alt="JetPack 7.2.1" src="https://img.shields.io/badge/JetPack-7.2.1-CC785C?labelColor=141413">
+  <img alt="Python 3.12" src="https://img.shields.io/badge/Python-3.12-FAF9F5?labelColor=141413">
+</p>
 
 같은 보드에서 공기 측정 서비스(11/05까지 꺼지면 안 됨)가 함께 돌았기 때문에, 실습 앱은 항상 메모리 제한을 걸고 켰고 학습은 맥에서만 했습니다. 실습 중 그 서비스가 꺼진 적은 없습니다.
-
-📊 **발표 자료:** [PDF](docs/presentation/eg2-practice-team5-jaeung.pdf) · [PowerPoint](docs/presentation/eg2-practice-team5-jaeung.pptx) · [발표 대본](docs/presentation/eg2-practice-team5-jaeung-대본.md)
 
 ---
 
