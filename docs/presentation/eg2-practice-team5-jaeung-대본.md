@@ -170,5 +170,5 @@
 
 ## 발표 전 체크
 
-- [ ] 발표 PC에 Noto Serif KR · Pretendard · JetBrains Mono 가 있는지 확인 (없으면 설치하거나 파일 › 옵션 › 저장 › 파일의 글꼴 포함)
+- [ ] 발표 PC에 Pretendard(Bold · SemiBold 정적 OTF)와 JetBrains Mono 가 있는지 확인 (없으면 설치하거나 파일 › 옵션 › 저장 › 파일의 글꼴 포함)
 - [ ] 발표자 보기로 노트를 보며 한 번, 노트 없이 한 번 리허설해서 시간을 잰다
