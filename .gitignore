@@ -22,7 +22,8 @@ __pycache__/
 .venv/
 
 # 7단계 학습 체크포인트·로그
-runs/
+runs/*
+!runs/test_log.md
 
 # 8단계 웹캠 크롭, YOLO 가중치
 crops/
